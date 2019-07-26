@@ -99,7 +99,7 @@ if __name__ == "__main__":
 	parser.add_argument("--buffer_type", default="FinalSigma0.5")				# Prepends name to filename.
 	parser.add_argument("--buffer_size", default="100K")
 	parser.add_argument("--eval_freq", default=1e2, type=float)			# How often (time steps) we evaluate
-	parser.add_argument("--max_timesteps", default=1e6, type=float)		# Max time steps to run environment for
+	parser.add_argument("--max_timesteps", default=1e6, type=float)		# Max time steps to run environment 
 	parser.add_argument('--exp_name', type=str, default='bc')
 	args = parser.parse_args()
 
