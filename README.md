@@ -1,4 +1,4 @@
-#Please follow this to start up
+# Please follow this to start up
 
 Place the "BCQ" and "ue" in your "user/spinningup/spinup/algos" path.
 
