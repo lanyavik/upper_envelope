@@ -94,7 +94,7 @@ if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--env_name", default="Hopper-v2")				# OpenAI gym environment name
 	parser.add_argument("--seed", default=1, type=int)					# Sets Gym, PyTorch and Numpy seeds
-	parser.add_argument("--buffer_type", default="FinalSigma0.5")				# Prepends name to filename.
+	parser.add_argument("--buffer_type", default="FinalSigma0.5")				# Prepends name to filename
 	parser.add_argument("--buffer_size", default="100K")
 	args = parser.parse_args()
 
