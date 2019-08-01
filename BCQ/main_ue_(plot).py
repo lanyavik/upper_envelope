@@ -9,13 +9,12 @@ from spinup.algos.ue.PPO_UE import train_upper_envelope, plot_envelope
 from spinup.algos.ue.models.mlp_critic import Value
 
 
-def ue_train(env_set="Hopper-v2", seed=1, buffer_type="FinalSigma0.5", buffer_seed=0, buffer_size='100K',
+def ue_train(env_set="Hopper-v2", seed=1, buffer_type="FinalSigma0.5", buffer_seed=0, buffer_size='500K',
 				max_ue_trainsteps=1e6, ):
-
 	rollout_list = [None, 1000, 200, 100, 10]
 	k_list = [10000, 1000, 100]
-	print('testing MClength:', rollout_list[seed%10])
-	print('Training loss ratio k:', k_list[seed//10])
+	print('testing MClength:', rollout_list[seed % 10])
+	print('Training loss ratio k:', k_list[seed // 10])
 
 	device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 	print("running on device:", device)
@@ -40,7 +39,7 @@ def ue_train(env_set="Hopper-v2", seed=1, buffer_type="FinalSigma0.5", buffer_se
 	action_dim = env.action_space.shape[0]
 	max_action = float(env.action_space.high[0])
 
-
+	'''
 	# Load buffer
 	replay_buffer = utils.SARSAReplayBuffer()
 	replay_buffer.load(buffer_name)
@@ -70,14 +69,17 @@ def ue_train(env_set="Hopper-v2", seed=1, buffer_type="FinalSigma0.5", buffer_se
 	upper_envelope = train_upper_envelope(states, actions, gts, state_dim, device, seed, k=k_list[seed//10])
 	torch.save(upper_envelope.state_dict(), '%s/%s_UE.pth' % ("./pytorch_models", setting_name))
 	print('ue train finished --')
-
+	'''
 	print('plotting ue --')
+	states = np.load('./results/ueMC_%s_S.npy' % setting_name, allow_pickle=True)
+	actions = np.load('./results/ueMC_%s_A.npy' % setting_name, allow_pickle=True)
+	gts = np.load('./results/ueMC_%s_Gt.npy' % setting_name, allow_pickle=True)
 
 	upper_envelope = Value(state_dim, activation='relu')
 	upper_envelope.load_state_dict(torch.load('%s/%s_UE.pth' % ("./pytorch_models", setting_name)))
 
 	plot_envelope(upper_envelope, states, actions, gts, \
-				  setting_name+'k=%s_MClen=%s_gamma=%s'%(k_list[seed//10], rollout_list[seed%10], 0.99), seed)
+				  setting_name + 'k=%s_MClen=%s_gamma=%s' % (k_list[seed // 10], rollout_list[seed % 10], 0.99), seed)
 
 
 

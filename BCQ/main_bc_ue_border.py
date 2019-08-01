@@ -11,9 +11,9 @@ from spinup.algos.ue.PPO_UE import train_upper_envelope, plot_envelope
 from spinup.algos.ue.models.mlp_critic import Value
 
 
-def bc_ue_learn(env_fn, env_name="Hopper-v2", seed=0, buffer_type="Robust", buffer_seed=0, buffer_size='100K',
+def bc_ue_learn(env_set="Hopper-v2", seed=0, buffer_type="Robust", buffer_seed=0, buffer_size='100K',
                 ue_seed=1, max_ue_trainsteps=1e6,
-			    eval_freq=float(1e3), max_timesteps=float(1e6), lr=1e-3, wd=0, border=0.75,
+			    eval_freq=float(1e3), max_timesteps=float(1e6), lr=1e-3, wd=0, border=0.9,
 			    logger_kwargs=dict()):
 
 	device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -24,8 +24,8 @@ def bc_ue_learn(env_fn, env_name="Hopper-v2", seed=0, buffer_type="Robust", buff
 	logger = EpochLogger(**logger_kwargs)
 	logger.save_config(locals())
 
-	file_name = "BCue_%s_%s" % (env_name, seed)
-	buffer_name = "%s_%s_%s_%s" % (buffer_type, env_name, buffer_seed, buffer_size)
+	file_name = "BCue_%s_%s" % (env_set, seed)
+	buffer_name = "%s_%s_%s_%s" % (buffer_type, env_set, buffer_seed, buffer_size)
 	setting_name = "%s_%s" % (buffer_name, ue_seed)
 	print
 	("---------------------------------------")
@@ -37,7 +37,7 @@ def bc_ue_learn(env_fn, env_name="Hopper-v2", seed=0, buffer_type="Robust", buff
 	if not os.path.exists("./results"):
 		os.makedirs("./results")
 
-	env = gym.make(env_name)
+	env = gym.make(env_set)
 
 	env.seed(seed)
 	torch.manual_seed(seed)
@@ -79,12 +79,17 @@ def bc_ue_learn(env_fn, env_name="Hopper-v2", seed=0, buffer_type="Robust", buff
 
 	upper_envelope = Value(state_dim, activation='relu')
 	upper_envelope.load_state_dict(torch.load('%s/%s_UE.pth' % ("./pytorch_models", setting_name)))
+	print('load envelope from', '%s/%s_UE.pth' % ("./pytorch_models", setting_name))
 
 	#plot_envelope(upper_envelope, states, actions, gts, buffer_name, seed)
 
 	print('policy train starts --')
-	print('load envelope from', '%s/%s_UE.pth' % ("./pytorch_models", setting_name))
-	gts = np.load('./results/ueMC_%s_Gt.npy' % buffer_name, allow_pickle=True)
+
+	gts = np.load('./results/ueMC_%s_Gt.npy' % setting_name, allow_pickle=True)
+	rollout_list = [None, 1000, 200, 100, 10]
+	k_list = [10000, 1000, 100]
+	print('testing MClength:', rollout_list[ue_seed % 10])
+	print('Training loss ratio k:', k_list[ue_seed // 10])
 
 
 	# Initialize policy
@@ -149,17 +154,17 @@ if __name__ == "__main__":
 	
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--env_name", default="Hopper-v2")				# OpenAI gym environment name
-	parser.add_argument("--seed", default=1, type=int)					# Sets Gym, PyTorch and Numpy seeds
+	parser.add_argument("--seed", default=2, type=int)					# Sets Gym, PyTorch and Numpy seeds
 	parser.add_argument("--buffer_type", default="FinalSigma0.5")				# Prepends name to filename.
 	parser.add_argument("--buffer_size", default="100K")
 	parser.add_argument("--eval_freq", default=1e2, type=float)			# How often (time steps) we evaluate
-	parser.add_argument("--max_timesteps", default=1e6, type=float)		# Max time steps to run environment 
+	parser.add_argument("--max_timesteps", default=1e6, type=float)		# Max time steps to run environment for
 	parser.add_argument('--exp_name', type=str, default='bc_ue_b')
 	args = parser.parse_args()
 
 	logger_kwargs = setup_logger_kwargs(args.exp_name, args.seed)
 
-	bc_ue_learn(lambda: gym.make(args.env), env_name=args.env_name, seed=args.seed, buffer_type=args.buffer_type,
+	bc_ue_learn(env_set=args.env_name, seed=args.seed, buffer_type=args.buffer_type,
                 buffer_size=args.buffer_size, eval_freq=args.eval_freq,
                 max_timesteps=args.max_timesteps,
                 logger_kwargs=logger_kwargs)

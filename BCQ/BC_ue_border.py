@@ -71,7 +71,7 @@ class BC_ue(object):
 			state_value = self.ue_valfunc(state.cpu()).squeeze().detach().numpy()
 			weights = np.where(mc_ret >=  border * state_value, 1, 0)
 			update_size = np.count_nonzero(weights)
-			weights = torch.FloatTensor(np.stack((weights,) * 3 , axis=1)).to(device)
+			weights = torch.FloatTensor(np.stack((weights,) * self.action_dim , axis=1)).to(device)
 			#print(weights.size(), action.size())
 			# Compute MSE loss
 			actor_loss = torch.mul(weights, self.actor(state) - action).pow(2).mean()
@@ -83,6 +83,7 @@ class BC_ue(object):
 
 			logger.store(Loss=actor_loss.cpu().item(), UpSize=update_size, SVal=state_value.mean())
 
-		
+		#torch.save(self.actor.state_dict(), '%s/%s_actor.pth' % (directory, filename))
+
 
 

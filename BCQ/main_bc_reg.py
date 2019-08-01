@@ -8,7 +8,7 @@ from spinup.utils.run_utils import setup_logger_kwargs
 from spinup.algos.BCQ import utils, BC_reg
 
 
-def bc_reg_learn(env_fn, env_name="Hopper-v2", seed=0, buffer_type="Robust", buffer_seed=0, buffer_size='100K',
+def bc_reg_learn(env_set="Hopper-v2", seed=0, buffer_type="Robust", buffer_seed=0, buffer_size='100K',
 			  eval_freq=float(1e3), max_timesteps=float(1e6), lr=1e-3, wd=0,
 			  logger_kwargs=dict()):
 
@@ -20,8 +20,8 @@ def bc_reg_learn(env_fn, env_name="Hopper-v2", seed=0, buffer_type="Robust", buf
 	logger = EpochLogger(**logger_kwargs)
 	logger.save_config(locals())
 
-	file_name = "BCreg_%s_%s" % (env_name, seed)
-	buffer_name = "%s_%s_%s_%s" % (buffer_type, env_name, buffer_seed, buffer_size)
+	file_name = "BCreg_%s_%s" % (env_set, seed)
+	buffer_name = "%s_%s_%s_%s" % (buffer_type, env_set, buffer_seed, buffer_size)
 	print
 	("---------------------------------------")
 	print
@@ -32,7 +32,7 @@ def bc_reg_learn(env_fn, env_name="Hopper-v2", seed=0, buffer_type="Robust", buf
 	if not os.path.exists("./results"):
 		os.makedirs("./results")
 
-	env = gym.make(env_name)
+	env = gym.make(env_set)
 
 	env.seed(seed)
 	torch.manual_seed(seed)
@@ -94,18 +94,18 @@ def evaluate_policy(policy, env, eval_episodes=10):
 if __name__ == "__main__":
 	
 	parser = argparse.ArgumentParser()
-	parser.add_argument("--env_name", default="Hopper-v2")				# OpenAI gym environment name
+	parser.add_argument("--env_set", default="Hopper-v2")				# OpenAI gym environment name
 	parser.add_argument("--seed", default=0, type=int)					# Sets Gym, PyTorch and Numpy seeds
 	parser.add_argument("--buffer_type", default="FinalSigma0.5")				# Prepends name to filename.
 	parser.add_argument("--buffer_size", default="100K")
 	parser.add_argument("--eval_freq", default=1e2, type=float)			# How often (time steps) we evaluate
-	parser.add_argument("--max_timesteps", default=1e6, type=float)		# Max time steps to run environment 
+	parser.add_argument("--max_timesteps", default=1e6, type=float)		# Max time steps to run environment for
 	parser.add_argument('--exp_name', type=str, default='bc')
 	args = parser.parse_args()
 
 	logger_kwargs = setup_logger_kwargs(args.exp_name, args.seed)
 
-	bc_reg_learn(lambda: gym.make(args.env), env_name=args.env_name, seed=args.seed, buffer_type=args.buffer_type,
+	bc_reg_learn(env_set=args.env_set, seed=args.seed, buffer_type=args.buffer_type,
 			     buffer_size=args.buffer_size, eval_freq=args.eval_freq, max_timesteps=args.max_timesteps,
 			     logger_kwargs=logger_kwargs)
 
