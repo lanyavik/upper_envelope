@@ -31,14 +31,14 @@ if __name__ == "__main__":
 	parser.add_argument("--seed", default=0, type=int)  # Sets Gym, PyTorch and Numpy seeds
 	parser.add_argument("--max_timesteps", default=1e6, type=float)  # Max time steps to run environment for
 	parser.add_argument("--start_timesteps", default=1e3, type=int)  # How many time steps purely random policy is run for
-	parser.add_argument("--expl_noise", default=0.1, type=float)  # Std of Gaussian exploration noise
-	parser.add_argument("--buffer_size", default=1e5, type=float)
+	parser.add_argument("--expl_noise", default=0.5, type=float)  # Std of Gaussian exploration noise
+	parser.add_argument("--cut_buffer_size", default=1e5, type=float)
 	args = parser.parse_args()
 
 
 	file_name = "DDPG_%s_%s" % (args.env_name, str(args.seed))
 	buffer_name = "FinalSigma%s_%s_%s_%sK" % (str(args.expl_noise), args.env_name, str(args.seed),
-										   str(int(args.buffer_size/1e3)))
+										   str(int(args.cut_buffer_size/1e3)))
 	exp_name = "ddpg_collection_%s_steps%s_sigma%s_%s" \
 			   % (args.env_name, str(args.max_timesteps), str(args.expl_noise), str(args.seed))
 	print ("---------------------------------------")
@@ -61,8 +61,11 @@ if __name__ == "__main__":
 	test_env = gym.make(args.env_name)
 
 	# Set seeds
+	'''for algos with environment interacts we also have to seed env.action_space'''
 	env.seed(args.seed)
 	test_env.seed(args.seed)
+	env.action_space.np_random.seed(args.seed)
+	test_env.action_space.np_random.seed(args.seed)
 	torch.manual_seed(args.seed)
 	np.random.seed(args.seed)
 	
@@ -132,6 +135,6 @@ if __name__ == "__main__":
 	# Save final policy
 	policy.save("%s" % (file_name), directory="./pytorch_models")
 	# Save final buffer
-	replay_buffer.cut_final(args.buffer_size)
+	replay_buffer.cut_final(args.cut_buffer_size)
 	replay_buffer.save(buffer_name)
 
