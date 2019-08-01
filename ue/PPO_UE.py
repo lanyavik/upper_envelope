@@ -76,18 +76,18 @@ def calculate_returns(batch,expert_data):
         num += 1
 
 
-def L2PenaltyLoss(predicted,target):
+def L2PenaltyLoss(predicted,target,k_val):
     perm = np.arange(predicted.shape[0])
     loss = Variable(torch.Tensor([0]),requires_grad=True)
     num = 0
     for i in perm:
         Vsi = predicted[i]
         yi = target[i]
-        if Vsi >= yi:   
+        if Vsi >= yi:
             mseloss = (Vsi - yi)**2
             #loss = torch.add(loss,mseloss)
         else:
-            mseloss = 10000 * (yi - Vsi)**2
+            mseloss = k_val * (yi - Vsi)**2
             num += 1
         loss = torch.add(loss, mseloss) # a very big number
     #print ('below:',num)
@@ -99,7 +99,7 @@ def train_upper_envelope(states, actions, returns, state_dim, device, seed,
                          upper_learning_rate=3e-3,
                          weight_decay = 0.02,
                          max_step_num = int(1e6),
-                         consecutive_steps = 4):
+                         consecutive_steps = 4, k=10000):
 
     states = torch.from_numpy(np.array(states))
     actions = torch.from_numpy(np.array(actions))
@@ -107,7 +107,7 @@ def train_upper_envelope(states, actions, returns, state_dim, device, seed,
 
     use_gpu = True if device == "cuda:0" else False
 
-    # Init upper_envelope net
+    # Init upper_envelope net (*use relu as activation function
     upper_envelope = Value(state_dim, activation='relu')
     upper_envelope_retrain = Value(state_dim, activation='relu')
     optimizer_upper = torch.optim.Adam(upper_envelope.parameters(), lr=upper_learning_rate,
@@ -195,7 +195,7 @@ def train_upper_envelope(states, actions, returns, state_dim, device, seed,
                 returns_b = Variable(returns_b.float())
                 Vsi = upper_envelope(states_b)
                 # loss = loss_fn(Vsi, returns_b)
-                loss = L2PenaltyLoss(Vsi, returns_b)
+                loss = L2PenaltyLoss(Vsi, returns_b, k_val=k)
                 train_loss += loss
                 upper_envelope.zero_grad()
                 loss.backward()
@@ -214,7 +214,7 @@ def train_upper_envelope(states, actions, returns, state_dim, device, seed,
             states_t = Variable(states_t.float())
             returns_t = Variable(returns_t.float())
             Vsi = upper_envelope(states_t)
-            loss = L2PenaltyLoss(Vsi, returns_t)
+            loss = L2PenaltyLoss(Vsi, returns_t, k_val=k)
             validation_loss += loss
 
         if validation_loss < previous_loss:
@@ -248,7 +248,7 @@ def train_upper_envelope(states, actions, returns, state_dim, device, seed,
             returns_b = Variable(returns_b.float())
             Vsi = upper_envelope_retrain(states_b)
             #loss = loss_fn(Vsi, returns_b)
-            loss = L2PenaltyLoss(Vsi, returns_b)
+            loss = L2PenaltyLoss(Vsi, returns_b, k_val=k)
             train_loss += loss
             upper_envelope_retrain.zero_grad()
             loss.backward()
@@ -335,7 +335,9 @@ def plot_envelope(upper_envelope, states, actions, returns, buffer_name, seed):
 
     plt.xlabel('state')
     plt.ylabel('V(s) comparison')
-    plt.title(buffer_name+'mc_avg=%s'%str(MC_r.mean()))
+    plt.title(buffer_name+\
+              '\n__mc_avg=%.2f'%MC_r.mean().item()+\
+              '\n__above=%s_highUE=%.2f_highMC=%.2f'%(num_above, Vs_highest.item(), highestR.item()) )
     plt.legend()
     plt.savefig('./plots/' + "ue_visualization_%s.png"%title)
     #plt.savefig('/gpfsnyu/home/yw1370/PPO_Rejection/PyTorch-RL/images/UpperEnvelope' + title + '.png')
