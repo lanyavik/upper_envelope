@@ -9,8 +9,8 @@ from spinup.algos.ue.PPO_UE import train_upper_envelope, plot_envelope
 from spinup.algos.ue.models.mlp_critic import Value
 
 
-def ue_train(env_set="Hopper-v2", seed=1, buffer_type="FinalSigma0.5", buffer_seed=0, buffer_size='100K',
-				max_ue_trainsteps=1e6, ):
+def ue_train(env_set="Hopper-v2", seed=1, buffer_type="FinalSigma0.5", buffer_seed=1, buffer_size='100K',
+				max_ue_trainsteps=1e6, logger_kwargs=dict()):
 
 	rollout_list = [None, 1000, 200, 100, 10]
 	k_list = [10000, 1000, 100]
@@ -102,7 +102,7 @@ if __name__ == "__main__":
 	parser.add_argument("--env_set", default="Hopper-v2")				# OpenAI gym environment name
 	parser.add_argument("--seed", default=1, type=int)					# Sets Gym, PyTorch and Numpy seeds
 	parser.add_argument("--buffer_type", default="FinalSigma0.5")				# Prepends name to filename.
-	parser.add_argument("--buffer_size", default="100K")
+	parser.add_argument("--buffer_size", default="1000K")
 	args = parser.parse_args()
 
 
