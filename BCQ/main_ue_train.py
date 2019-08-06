@@ -9,7 +9,8 @@ from spinup.algos.ue.PPO_UE import train_upper_envelope, plot_envelope
 from spinup.algos.ue.models.mlp_critic import Value
 
 
-def ue_train(env_set="Hopper-v2", seed=1, buffer_type="FinalSigma0.5", buffer_seed=1, buffer_size='100K',
+def ue_train(env_set="Hopper-v2", seed=1, buffer_type="FinalSigma0.5", buffer_seed=0, buffer_size='1000K',
+			 	cut_buffer_size='500K',
 				max_ue_trainsteps=1e6, logger_kwargs=dict()):
 
 	rollout_list = [None, 1000, 200, 100, 10]
@@ -21,8 +22,8 @@ def ue_train(env_set="Hopper-v2", seed=1, buffer_type="FinalSigma0.5", buffer_se
 	print("running on device:", device)
 
 
-	buffer_name = "%s_%s_%s_%s" % (buffer_type, env_set, buffer_seed, buffer_size)
-	setting_name = "%s_%s" % (buffer_name, seed)
+	buffer_name = "%s_%s_%s" % (buffer_type, env_set, buffer_seed)
+	setting_name = "%s_%s_%s" % (buffer_name, cut_buffer_size, seed)
 	print("---------------------------------------")
 	print("Settings: " + setting_name)
 	print("---------------------------------------")
@@ -43,8 +44,10 @@ def ue_train(env_set="Hopper-v2", seed=1, buffer_type="FinalSigma0.5", buffer_se
 
 	# Load buffer
 	replay_buffer = utils.SARSAReplayBuffer()
-	replay_buffer.load(buffer_name)
-	print('buffer name:', buffer_name)
+	replay_buffer.load(buffer_name+'_'+buffer_size)
+	replay_buffer.cut_final(int(cut_buffer_size[:-1])*1e3)
+
+	print('buffer setting:', buffer_name+'_'+cut_buffer_size)
 
 	# extract (s,a,r) pairs from replay buffer
 	length = replay_buffer.get_length()
@@ -103,10 +106,11 @@ if __name__ == "__main__":
 	parser.add_argument("--seed", default=1, type=int)					# Sets Gym, PyTorch and Numpy seeds
 	parser.add_argument("--buffer_type", default="FinalSigma0.5")				# Prepends name to filename.
 	parser.add_argument("--buffer_size", default="1000K")
+	parser.add_argument("--cut_buffer_size", default="1000K")
 	args = parser.parse_args()
 
 
 
 	ue_train(env_set=args.env_set, seed=args.seed,
-			 buffer_type=args.buffer_type, buffer_size=args.buffer_size)
+			 buffer_type=args.buffer_type, buffer_size=args.buffer_size, cut_buffer_size=args.cut_buffer_size)
 

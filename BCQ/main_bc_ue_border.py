@@ -11,8 +11,8 @@ from spinup.algos.ue.PPO_UE import train_upper_envelope, plot_envelope
 from spinup.algos.ue.models.mlp_critic import Value
 
 
-def bc_ue_learn(env_set="Hopper-v2", seed=0, buffer_type="Robust", buffer_seed=0, buffer_size='100K',
-                ue_seed=1, max_ue_trainsteps=1e6,
+def bc_ue_learn(env_set="Hopper-v2", seed=0, buffer_type="Robust", buffer_seed=1, buffer_size='1000K',
+                cut_buffer_size='500K', ue_seed=1, max_ue_trainsteps=1e6,
 			    eval_freq=float(1e3), max_timesteps=float(1e6), lr=1e-3, wd=0, border=0.9,
 			    logger_kwargs=dict()):
 
@@ -25,8 +25,8 @@ def bc_ue_learn(env_set="Hopper-v2", seed=0, buffer_type="Robust", buffer_seed=0
 	logger.save_config(locals())
 
 	file_name = "BCue_%s_%s" % (env_set, seed)
-	buffer_name = "%s_%s_%s_%s" % (buffer_type, env_set, buffer_seed, buffer_size)
-	setting_name = "%s_%s" % (buffer_name, ue_seed)
+	buffer_name = "%s_%s_%s" % (buffer_type, env_set, buffer_seed)
+	setting_name = "%s_%s_%s" % (buffer_name, cut_buffer_size, ue_seed)
 	print
 	("---------------------------------------")
 	print
@@ -47,11 +47,14 @@ def bc_ue_learn(env_set="Hopper-v2", seed=0, buffer_type="Robust", buffer_seed=0
 	action_dim = env.action_space.shape[0]
 	max_action = float(env.action_space.high[0])
 
-
-
 	# Load buffer
 	replay_buffer = utils.SARSAReplayBuffer()
-	replay_buffer.load(buffer_name)
+	replay_buffer.load(buffer_name + '_' + buffer_size)
+	if buffer_size != cut_buffer_size:
+		replay_buffer.cut_final(int(cut_buffer_size[:-1]) * 1e3)
+	print(replay_buffer.get_length())
+
+	print('buffer setting:', buffer_name + '_' + cut_buffer_size)
 	'''
 	# extract (s,a,r) pairs from replay buffer
 	length = replay_buffer.get_length()
@@ -153,10 +156,11 @@ def calculate_mc_ret(replay_buffer, idx, rollout=10, discount=0.99):
 if __name__ == "__main__":
 	
 	parser = argparse.ArgumentParser()
-	parser.add_argument("--env_name", default="Hopper-v2")				# OpenAI gym environment name
-	parser.add_argument("--seed", default=2, type=int)					# Sets Gym, PyTorch and Numpy seeds
+	parser.add_argument("--env_set", default="Hopper-v2")				# OpenAI gym environment name
+	parser.add_argument("--seed", default=1, type=int)					# Sets Gym, PyTorch and Numpy seeds
 	parser.add_argument("--buffer_type", default="FinalSigma0.5")				# Prepends name to filename.
-	parser.add_argument("--buffer_size", default="100K")
+	parser.add_argument("--buffer_size", default="1000K")
+	parser.add_argument("--cut_buffer_size", default="1000K")
 	parser.add_argument("--eval_freq", default=1e2, type=float)			# How often (time steps) we evaluate
 	parser.add_argument("--max_timesteps", default=1e6, type=float)		# Max time steps to run environment for
 	parser.add_argument('--exp_name', type=str, default='bc_ue_b')
@@ -164,7 +168,7 @@ if __name__ == "__main__":
 
 	logger_kwargs = setup_logger_kwargs(args.exp_name, args.seed)
 
-	bc_ue_learn(env_set=args.env_name, seed=args.seed, buffer_type=args.buffer_type,
-                buffer_size=args.buffer_size, eval_freq=args.eval_freq,
-                max_timesteps=args.max_timesteps,
+	bc_ue_learn(env_set=args.env_set, seed=args.seed, buffer_type=args.buffer_type,
+                buffer_size=args.buffer_size, cut_buffer_size=args.cut_buffer_size,
+				eval_freq=args.eval_freq, max_timesteps=args.max_timesteps,
                 logger_kwargs=logger_kwargs)
