@@ -10,7 +10,7 @@ from spinup.algos.ue.models.mlp_critic import Value
 
 
 def ue_train(env_set="Hopper-v2", seed=1, buffer_type="FinalSigma0.5", buffer_seed=0, buffer_size='1000K',
-			 	cut_buffer_size='1000K',
+			 	cut_buffer_size='500K',
 				max_ue_trainsteps=1e6, logger_kwargs=dict()):
 
 	rollout_list = [None, 1000, 200, 100, 10]
@@ -45,8 +45,7 @@ def ue_train(env_set="Hopper-v2", seed=1, buffer_type="FinalSigma0.5", buffer_se
 	# Load buffer
 	replay_buffer = utils.SARSAReplayBuffer()
 	replay_buffer.load(buffer_name+'_'+buffer_size)
-	if buffer_size != cut_buffer_size:
-		replay_buffer.cut_final(int(cut_buffer_size[:-1]) * 1e3)
+	replay_buffer.cut_final(int(cut_buffer_size[:-1])*1e3)
 
 	print('buffer setting:', buffer_name+'_'+cut_buffer_size)
 
