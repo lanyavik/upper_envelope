@@ -7,3 +7,5 @@ And download some sample datafiles from https://drive.google.com/file/d/1FpztyYv
 Place the 4 folders in the zip under "user/spinningup/spinup/algos/BCQ"
 
 Then run each "main_xxx.py" to check if they are working ok on your computer.
+
+# To make sure your can reproduce my results, please use pytorch 1.1.0
