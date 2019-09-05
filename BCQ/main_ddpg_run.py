@@ -9,7 +9,7 @@ from spinup.algos.BCQ import utils, DDPG_col
 
 
 def ddpg_genbuf(env_set="Hopper-v2", seed=0, max_timesteps=float(1e6), start_timesteps=int(1e3),
-				expl_noise=0.5, cut_buffer_size=float(1e5),
+				expl_noise=0.5,
 			    eval_freq='episode_timesteps',
 			    logger_kwargs=dict()):
 
@@ -25,7 +25,7 @@ def ddpg_genbuf(env_set="Hopper-v2", seed=0, max_timesteps=float(1e6), start_tim
 
 	file_name = "DDPG_%s_%s" % (env_set, str(seed))
 	buffer_name = "FinalSigma%s_%s_%s_%sK" % (str(expl_noise), env_set, str(seed),
-										   str(int(cut_buffer_size/1e3)))
+										   str(int(max_timesteps/1e3)))
 	exp_name = "ddpg_collection_%s_steps%s_sigma%s_%s" \
 			   % (env_set, str(max_timesteps), str(expl_noise), str(seed))
 	print ("---------------------------------------")
@@ -52,10 +52,11 @@ def ddpg_genbuf(env_set="Hopper-v2", seed=0, max_timesteps=float(1e6), start_tim
 	state_dim = env.observation_space.shape[0]
 	action_dim = env.action_space.shape[0] 
 	max_action = float(env.action_space.high[0])
+	print('max episode length', env._max_episode_steps)
 
 	# Initialize policy and buffer
 	policy = DDPG_col.DDPG(state_dim, action_dim, max_action)
-	replay_buffer = utils.SARSAReplayBuffer()
+	replay_buffer = utils.ReplayBuffer()
 	
 	total_timesteps = 0
 	episode_num = 0
@@ -80,42 +81,38 @@ def ddpg_genbuf(env_set="Hopper-v2", seed=0, max_timesteps=float(1e6), start_tim
 
 
 			# Reset environment
-			new_obs = env.reset()
+			obs = env.reset()
 			done = False
-			action = 'None'
 			episode_reward = 0
 			episode_timesteps = 0
 			episode_num += 1 
 		
 		# Select action randomly or according to policy
 		if total_timesteps < start_timesteps:
-			new_action = env.action_space.sample()
+			action = env.action_space.sample()
 		else:
-			new_action = policy.select_action(np.array(new_obs))
+			action = policy.select_action(np.array(obs))
 			if expl_noise != 0:
-				new_action = (new_action + np.random.normal(0, expl_noise, size=env.action_space.shape[0]))\
+				action = (action + np.random.normal(0, expl_noise, size=env.action_space.shape[0]))\
 							  .clip(env.action_space.low, env.action_space.high)
 
 		# Perform new action!!!
-		new_obs_NEXT, reward_NEXT, done, _ = env.step(new_action)
-		done_bool = 0 if episode_timesteps + 1 == env._max_episode_steps else float(done)
-
-		# Store data in replay buffer
-		if episode_timesteps != 0:
-			replay_buffer.add((obs, new_obs, action, new_action, reward, done_bool))
-		obs = new_obs
-		new_obs, reward = new_obs_NEXT, reward_NEXT
-		action = new_action
-		episode_reward += reward_NEXT
-
-
+		new_obs, reward, done, _ = env.step(action)
+		episode_reward += reward
 		episode_timesteps += 1
 		total_timesteps += 1
+
+		done_bool = 0 if episode_timesteps == env._max_episode_steps else float(done)
+
+		# Store data in replay buffer
+
+		replay_buffer.add((obs, new_obs, action, reward, done_bool))
+		obs = new_obs
+
 		
 	# Save final policy
 	policy.save("%s" % (file_name), directory="./pytorch_models")
 	# Save final buffer
-	replay_buffer.cut_final(cut_buffer_size)
 	replay_buffer.save(buffer_name)
 
 
@@ -143,7 +140,6 @@ if __name__ == "__main__":
 	parser.add_argument("--max_timesteps", default=1e6, type=float)  # Max time steps to run environment for
 	parser.add_argument("--start_timesteps", default=1e3, type=int)  # How many time steps purely random policy is run for
 	parser.add_argument("--expl_noise", default=0.5, type=float)  # Std of Gaussian exploration noise
-	parser.add_argument("--cut_buffer_size", default=1e5, type=float)
 	args = parser.parse_args()
 
 	exp_name='ddpgcol_sigma%s_trainlen%s_%s'%(args.expl_noise, args.max_timesteps, args.env_set)
@@ -151,6 +147,6 @@ if __name__ == "__main__":
 
 	ddpg_genbuf(env_set=args.env_set, seed=args.seed,
 				max_timesteps=args.max_timesteps, start_timesteps=args.start_timesteps,
-				expl_noise=args.expl_noise, cut_buffer_size=args.cut_buffer_size,
+				expl_noise=args.expl_noise,
 				logger_kwargs=logger_kwargs)
 

@@ -12,8 +12,9 @@ class ReplayBuffer(object):
 	def add(self, data):
 		self.storage.append(data)
 
-	def sample(self, batch_size):
-		ind = np.random.randint(0, len(self.storage), size=batch_size)
+	def sample(self, batch_size, require_idxs=False, space_rollout=0):
+		ind = np.random.randint(0, len(self.storage) - space_rollout,
+								size=batch_size)
 		state, next_state, action, reward, done = [], [], [], [], []
 
 		for i in ind: 
@@ -24,18 +25,34 @@ class ReplayBuffer(object):
 			reward.append(np.array(r, copy=False))
 			done.append(np.array(d, copy=False))
 
-		return (np.array(state), 
-			np.array(next_state), 
-			np.array(action), 
-			np.array(reward).reshape(-1, 1), 
-			np.array(done).reshape(-1, 1))
+		if require_idxs:
+			return (np.array(state),
+					np.array(next_state),
+					np.array(action),
+					np.array(reward).reshape(-1, 1),
+					np.array(done).reshape(-1, 1), ind)
+		else:
+			return (np.array(state),
+					np.array(next_state),
+					np.array(action),
+					np.array(reward).reshape(-1, 1),
+					np.array(done).reshape(-1, 1))
+
+	def index (self, i):
+		return self.storage[i]
 
 	def save(self, filename):
-		np.save("./buffers/"+filename+".npy", self.storage)
+		np.save("./buffers/"+filename+"sars.npy", self.storage)
 
 	def load(self, filename):
-		self.storage = np.load("./buffers/"+filename+".npy",
+		self.storage = np.load("./buffers/"+filename+"sars.npy",
                                        allow_pickle=True)
+	def cut_final(self, buffer_size):
+		self.storage = self.storage[ -int(buffer_size): ]
+
+	def get_length(self):
+		return self.storage.__len__()
+
 
 
 '''SARSA replay buffer'''
