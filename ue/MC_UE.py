@@ -99,7 +99,8 @@ def train_upper_envelope(states, actions, returns, state_dim, device, seed,
                          upper_learning_rate=3e-3,
                          weight_decay = 0.02,
                          max_step_num = int(1e6),
-                         consecutive_steps = 4, k=10000):
+                         consecutive_steps = 4, k=10000,
+                         logger=dict()):
 
     states = torch.from_numpy(np.array(states))
     actions = torch.from_numpy(np.array(actions))
@@ -234,7 +235,7 @@ def train_upper_envelope(states, actions, returns, state_dim, device, seed,
 
     optim_iter_num = int(math.ceil(states.shape[0] / batch_size))
     for i in range(best_training_steps):
-        train_loss = 0
+        retrain_loss = 0
         perm = np.arange(states.shape[0])
         np.random.shuffle(perm)
         perm = LongTensor(perm).cuda() if use_gpu else LongTensor(perm)
@@ -249,22 +250,25 @@ def train_upper_envelope(states, actions, returns, state_dim, device, seed,
             Vsi = upper_envelope_retrain(states_b)
             #loss = loss_fn(Vsi, returns_b)
             loss = L2PenaltyLoss(Vsi, returns_b, k_val=k)
-            train_loss += loss.detach()
+            retrain_loss += loss.detach()
             upper_envelope_retrain.zero_grad()
             loss.backward()
             optimizer_upper_retrain.step()
 
+        logger.log_tabular('UELoss', retrain_loss.cpu().item())
+        logger.dump_tabular()
+
     upper_envelope.load_state_dict(upper_envelope_retrain.state_dict())
     print("Policy training is complete.")
 
-    return upper_envelope
+    return upper_envelope, retrain_loss
 
 '''Plotting code for UE is here'''
 
-def plot_envelope(upper_envelope, states, actions, returns, buffer_name, seed, plot_func='v'):
+def plot_envelope(upper_envelope, states, actions, returns, buffer_setting, seed, plot_func='v', hyper_default=True):
 
-
-    upper_learning_rate, weight_decay, max_step_num ,consecutive_steps = 3e-3, 0.02, int(1e6), 4
+    if hyper_default:
+        upper_learning_rate, weight_decay, max_step_num ,consecutive_steps = 3e-3, 0.02, int(1e6), 4
 
     states = torch.from_numpy(np.array(states))
     actions = torch.from_numpy(np.array(actions))
@@ -340,19 +344,20 @@ def plot_envelope(upper_envelope, states, actions, returns, buffer_name, seed, p
     plot_s = list(np.arange(states.shape[0]))
     plt.scatter(plot_s, list(MC_r.view(1, -1).numpy()[0]), s=0.5, color='orange', label='MC_Returns')
     plt.plot(plot_s, list(increasing_ue_returns.view(1, -1).numpy()[0]), label="UpperEnvelope")
-    title = buffer_name +'_enve_vs_mc_maxsteps_' + str(max_step_num) + '_ulr_' + str(upper_learning_rate) \
-            + '_wd_' + str(weight_decay) + '_seed_' + str(seed) + '_con_steps_' + str(consecutive_steps)
+    title = buffer_setting + '_ues_' + str(seed)
     if plot_func == 'v':
         plt.xlabel('state')
         plt.ylabel('V(s) comparison')
     elif plot_func == 'q':
         plt.xlabel('state, action pair')
         plt.ylabel('Q(s,a) comparison')
-    plt.title(buffer_name+\
-              '\n__mc_avg=%.2f'%MC_r.mean().item()+\
-              '\n__above=%s_highUE=%.2f_highMC=%.2f'%(num_above, Vs_highest.item(), highestR.item()) )
+    plt.title(buffer_setting.replace('[', '\n')+\
+              '\n__mc_avg=%.2f'%MC_r.mean().item()+'_above=%s_highUE=%.2f_highMC=%.2f'%\
+              (num_above, list(increasing_ue_returns.view(1, -1).numpy()[0])[-1], highestR.item())+\
+              '\ntrainhypers:'+'_maxsteps_' + str(max_step_num) + '_ulr_' + str(upper_learning_rate)+\
+              '_wd_' + str(weight_decay) + '_consteps_' + str(consecutive_steps))
     plt.legend()
-    plt.savefig('./plots/' + "%s_ue_visualization_%s.png"%(plot_func,title))
+    plt.savefig('./plots/' + "%s_ue_visual_%s.png"%(plot_func,title))
     #plt.savefig('/gpfsnyu/home/yw1370/PPO_Rejection/PyTorch-RL/images/UpperEnvelope' + title + '.png')
     plt.close('all')
 
