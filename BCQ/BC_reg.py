@@ -46,22 +46,21 @@ class BC_reg(object):
 		return self.actor(state).cpu().data.numpy().flatten()
 
 
-	def train(self, replay_buffer, iterations=500, batch_size=100, discount=0.99, tau=0.005, logger=dict()):
+	def train(self, replay_buffer, iterations=500, batch_size=100, logger=dict()):
 
 		for it in range(iterations):
 
-			state, next_state, action, next_action, reward, done = replay_buffer.sample(batch_size)
+			state, next_state, action, reward, done = replay_buffer.sample(batch_size)
 
 			state = torch.FloatTensor(state).to(device)
 			action = torch.FloatTensor(action).to(device)
 			next_state = torch.FloatTensor(next_state).to(device)
-			next_action = torch.FloatTensor(next_action).to(device)
 			reward = torch.FloatTensor(reward).to(device)
 			done = torch.FloatTensor(1 - done).to(device)
 
 
 			# Compute MSE loss
-			actor_loss = (self.actor(next_state) - next_action).pow(2).mean()
+			actor_loss = (self.actor(state) - action).pow(2).mean()
 			
 			# Optimize the actor 
 			self.actor_optimizer.zero_grad()

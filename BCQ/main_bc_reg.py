@@ -8,8 +8,8 @@ from spinup.utils.run_utils import setup_logger_kwargs
 from spinup.algos.BCQ import utils, BC_reg
 
 
-def bc_reg_learn(env_set="Hopper-v2", seed=0, buffer_type="Robust", buffer_seed=0, buffer_size='100K',
-			  eval_freq=float(1e3), max_timesteps=float(1e6), lr=1e-3, wd=0,
+def bc_reg_learn(env_set="Hopper-v2", seed=0, buffer_type="FinalSigma0.5", buffer_seed=0, buffer_size='1000K',
+			  cut_buffer_size='1000K', eval_freq=float(1e3), max_timesteps=float(1e6), lr=1e-3, wd=0,
 			  logger_kwargs=dict()):
 
 	device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -20,12 +20,12 @@ def bc_reg_learn(env_set="Hopper-v2", seed=0, buffer_type="Robust", buffer_seed=
 	logger = EpochLogger(**logger_kwargs)
 	logger.save_config(locals())
 
-	file_name = "BCreg_%s_%s" % (env_set, seed)
-	buffer_name = "%s_%s_%s_%s" % (buffer_type, env_set, buffer_seed, buffer_size)
+	file_name = "BCue_%s_%s" % (env_set, seed)
+	buffer_name = "%s_%s_%s" % (buffer_type, env_set, buffer_seed)
 	print
 	("---------------------------------------")
 	print
-	("Settings: " + file_name)
+	("Task: " + file_name)
 	print
 	("---------------------------------------")
 
@@ -33,8 +33,13 @@ def bc_reg_learn(env_set="Hopper-v2", seed=0, buffer_type="Robust", buffer_seed=
 		os.makedirs("./results")
 
 	env = gym.make(env_set)
+	test_env = gym.make(env_set)
 
+	# Set seeds
 	env.seed(seed)
+	test_env.seed(seed)
+	env.action_space.np_random.seed(seed)
+	test_env.action_space.np_random.seed(seed)
 	torch.manual_seed(seed)
 	np.random.seed(seed)
 
@@ -46,10 +51,15 @@ def bc_reg_learn(env_set="Hopper-v2", seed=0, buffer_type="Robust", buffer_seed=
 	policy = BC_reg.BC_reg(state_dim, action_dim, max_action, lr=lr, wd=wd)
 
 	# Load buffer
-	replay_buffer = utils.SARSAReplayBuffer()
-	replay_buffer.load(buffer_name)
+	replay_buffer = utils.ReplayBuffer()
+	replay_buffer.load(buffer_name + '_' + buffer_size)
+	if buffer_size != cut_buffer_size:
+		replay_buffer.cut_final(int(cut_buffer_size[:-1]) * 1e3)
+	print(replay_buffer.get_length())
 
-	evaluations = []
+	print('buffer setting:', buffer_name + '_' + cut_buffer_size)
+
+
 	episode_num = 0
 	done = True
 
@@ -58,11 +68,8 @@ def bc_reg_learn(env_set="Hopper-v2", seed=0, buffer_type="Robust", buffer_seed=
 		epoch += 1
 		pol_vals = policy.train(replay_buffer, iterations=int(eval_freq), logger=logger)
 
-		avgtest_reward = evaluate_policy(policy, env)
+		avgtest_reward = evaluate_policy(policy, test_env)
 		training_iters += eval_freq
-
-		evaluations.append(avgtest_reward)
-		np.save("./results/" + file_name, evaluations)
 
 		logger.log_tabular('Epoch', epoch)
 		logger.log_tabular('AverageTestEpRet', avgtest_reward)
@@ -97,7 +104,7 @@ if __name__ == "__main__":
 	parser.add_argument("--env_set", default="Hopper-v2")				# OpenAI gym environment name
 	parser.add_argument("--seed", default=0, type=int)					# Sets Gym, PyTorch and Numpy seeds
 	parser.add_argument("--buffer_type", default="FinalSigma0.5")				# Prepends name to filename.
-	parser.add_argument("--buffer_size", default="100K")
+	parser.add_argument("--buffer_size", default="1000K")
 	parser.add_argument("--eval_freq", default=1e2, type=float)			# How often (time steps) we evaluate
 	parser.add_argument("--max_timesteps", default=1e6, type=float)		# Max time steps to run environment for
 	parser.add_argument('--exp_name', type=str, default='bc')
