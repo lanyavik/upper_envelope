@@ -14,8 +14,7 @@ from utils import *
 from models.mlp_critic import Value
 from torch import LongTensor
 from torch.autograd import Variable
-from core.ppo import ppo_step
-from core.common import estimate_advantages
+import torch.nn.functional as F
 #from core.agent import Agent
 #from utils.replay_memory import Memory
 
@@ -272,7 +271,7 @@ def plot_envelope(upper_envelope, states, actions, returns, buffer_setting, seed
 
     states = torch.from_numpy(np.array(states))
     actions = torch.from_numpy(np.array(actions))
-    returns = torch.from_numpy(np.array(returns))  # reward is actually returns
+    returns = torch.from_numpy(np.array(returns))  # MC rets
     highestR, indice = torch.max(returns, 0)
     highestR = highestR.view(-1, 1)
     highestS = states[indice]
@@ -364,7 +363,73 @@ def plot_envelope(upper_envelope, states, actions, returns, buffer_setting, seed
     print('Plotting finished')
 
 
-   
+def plot_envelope_with_clipping(upper_envelope, states, returns, buffer_setting, seed, hyper_default=True, k_val=1000, S=10000):
+
+    if hyper_default:
+        upper_learning_rate, weight_decay, max_step_num ,consecutive_steps = 3e-3, 0.02, int(1e6), 4
+
+    states = torch.from_numpy(np.array(states))
+    returns = torch.from_numpy(np.array(returns))
+    highestR, _ = torch.max(returns, 0)
+
+    upper_envelope_r = []
+    MC_r = []
+    for i in range(states.shape[0]):
+        s = states[i]
+        upper_envelope_r.append(upper_envelope(s.float()).detach())
+        MC_r.append(returns[i])
+
+    upper_envelope_r = torch.stack(upper_envelope_r)
+    MC_r = torch.stack(MC_r).float()
+    increasing_ue_returns, increasing_ue_indices = torch.sort(upper_envelope_r.view(1, -1))
+    MC_r = MC_r[increasing_ue_indices[0]]
+
+    # Do auto clipping
+    perm = np.arange(states.shape[0])
+    Diff = []
+    for idx in perm:
+        Diff.append(increasing_ue_returns[0, idx] - MC_r.view(1, -1).numpy()[0, idx])
+
+    eval_point = states.shape[0] - 1
+    Clipping_value = increasing_ue_returns[0, eval_point]
+    while eval_point >= S:
+        min_Diff = min(Diff[eval_point - S:eval_point])
+        if min_Diff < 0:
+            Clipping_value = increasing_ue_returns[0, eval_point]
+            break
+        eval_point -= S
+
+    Adapt_Clip = []
+    for i in range(states.shape[0]):
+        Adapt_Clip.append(Clipping_value)
+    Adapt_Clip = torch.FloatTensor(Adapt_Clip)
+
+    clipped_ue_r = torch.where(increasing_ue_returns > Adapt_Clip, Adapt_Clip, increasing_ue_returns)
+    print(increasing_ue_returns.size(), clipped_ue_r.size())
+    num_above = torch.where(clipped_ue_r > MC_r, torch.FloatTensor([1]), torch.FloatTensor([0])).sum().item()
+    Clipping_loss = F.relu(clipped_ue_r-MC_r).sum() + F.relu(MC_r-clipped_ue_r).sum()*k_val
+
+    plot_s = list(np.arange(states.shape[0]))
+    plt.scatter(plot_s, list(MC_r.view(1, -1).numpy()[0]), s=0.5, color='orange', label='MC_Returns')
+    plt.plot(plot_s, list(increasing_ue_returns.view(1, -1).numpy()[0]), color='blue', label="UpperEnvelope")
+    plt.plot(plot_s, Adapt_Clip.numpy(), color='black', label="Adaptive_Clipping_%s" % eval_point)
+    clip_info = '_clip_%.2f_loss_%.2fe6_ues_%s' % (Clipping_value.item(), Clipping_loss.item()/1e6, seed)
+    title = buffer_setting + clip_info
+    plt.xlabel('state')
+    plt.ylabel('V(s) comparison')
+    plt.title(buffer_setting.replace('[', '\n') + \
+              '\n__mc_avg=%.2f' % MC_r.mean().item() + '_above=%s_highUE=%.2f_highMC=%.2f' % \
+              (num_above, list(increasing_ue_returns.view(1, -1).numpy()[0])[-1], highestR.item()) + \
+              '\nclip_info:' + clip_info)
+    plt.legend()
+    plt.savefig('./plots/' + "v_ue_visual_%s_Clipped.png" % title)
+    # plt.savefig('/gpfsnyu/home/yw1370/PPO_Rejection/PyTorch-RL/images/UpperEnvelope' + title + '.png')
+    plt.close('all')
+
+    print('Plotting finished')
+
+    return Clipping_value, Clipping_loss
+
 
 
 
