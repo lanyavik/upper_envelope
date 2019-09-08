@@ -7,7 +7,7 @@ from spinup.algos.BCQ import utils
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+device = 'cpu'
 
 # Implementation of Deep Deterministic Policy Gradients (DDPG)
 # Paper: https://arxiv.org/abs/1509.02971
@@ -38,7 +38,7 @@ class BC_ue(object):
 		self.actor = Actor(state_dim, action_dim, max_action).to(device)
 		self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=lr, weight_decay=wd)
 
-		self.ue_valfunc = ue_valfunc
+		self.ue_valfunc = ue_valfunc.to(device)
 		self.mc_rets = mc_rets
 
 		self.state_dim = state_dim
@@ -56,27 +56,27 @@ class BC_ue(object):
 
 		for it in range(iterations):
 
-			state, next_state, action, next_action, reward, done, idxs = \
-				replay_buffer.sample(batch_size, require_idxs=True)
+			state, next_state, action, reward, done, idxs = replay_buffer.sample(batch_size, require_idxs=True)
 
 			state = torch.FloatTensor(state).to(device)
 			action = torch.FloatTensor(action).to(device)
-			next_state = torch.FloatTensor(next_state).to(device)
-			next_action = torch.FloatTensor(next_action).to(device)
-			reward = torch.FloatTensor(reward).to(device)
-			done = torch.FloatTensor(1 - done).to(device)
-			mc_ret = self.mc_rets[idxs]
+			#next_state = torch.FloatTensor(next_state).to(device)
+			#reward = torch.FloatTensor(reward).to(device)
+			#done = torch.FloatTensor(1 - done).to(device)
+			mc_ret = torch.FloatTensor(self.mc_rets[idxs]).to(device)
 
 			# estimate state values by upper envelope
-			state_value = self.ue_valfunc(state.cpu()).squeeze().detach().numpy()
+			state_value = self.ue_valfunc(state).squeeze().detach()
 
 
 			if C is not None:
-				state_value = np.where(state_value > C, C, state_value)
+				C = C.to(device)
+				state_value = torch.where(state_value > C, C, state_value)
 
-			weights = np.where(mc_ret >= border * state_value, 1, 0)
-			update_size = np.count_nonzero(weights)
-			weights = torch.FloatTensor(np.stack((weights,) * self.action_dim , axis=1)).to(device)
+			weights = torch.where(mc_ret > border * state_value,\
+								  torch.FloatTensor([1]).to(device), torch.FloatTensor([0]).to(device))
+			update_size = weights.sum().cpu().item()
+			weights = torch.stack([weights, ] * self.action_dim, dim=1)
 			#print(weights.size(), action.size())
 			# Compute MSE loss
 			actor_loss = torch.mul(weights, self.actor(state) - action).pow(2).mean()

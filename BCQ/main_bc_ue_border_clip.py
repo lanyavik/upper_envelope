@@ -6,14 +6,15 @@ import os
 from spinup.utils.logx import EpochLogger
 from spinup.utils.run_utils import setup_logger_kwargs
 from spinup.algos.BCQ import utils, BC_ue_border_clip
-
+from spinup.algos.ue.MC_UE import plot_envelope_with_clipping
 
 from spinup.algos.ue.models.mlp_critic import Value
 
 
 def bc_ue_learn(env_set="Hopper-v2", seed=0, buffer_type="FinalSigma0.5", buffer_seed=0, buffer_size='1000K',
-                cut_buffer_size='1000K', ue_seed=2, gamma=0.99, ue_rollout=10, ue_loss_k=1000,
-			    eval_freq=float(500), max_timesteps=float(1e5), lr=1e-3, wd=0, border=0.75, clip=None,
+                cut_buffer_size='1000K', ue_seed_list=[1], gamma=0.99, ue_rollout=1000, ue_loss_k=10000,
+				clip_ue=None, detect_interval=10000,
+			    eval_freq=float(500), max_timesteps=float(1e5), lr=1e-3, wd=0, border=0.9,
 			    logger_kwargs=dict()):
 
 	device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -56,7 +57,7 @@ def bc_ue_learn(env_set="Hopper-v2", seed=0, buffer_type="FinalSigma0.5", buffer
 	max_action = float(env.action_space.high[0])
 
 	# Load buffer
-	replay_buffer = utils.SARSAReplayBuffer()
+	replay_buffer = utils.ReplayBuffer()
 	replay_buffer.load(buffer_name + '_' + buffer_size)
 	if buffer_size != cut_buffer_size:
 		replay_buffer.cut_final(int(cut_buffer_size[:-1]) * 1e3)
@@ -64,40 +65,42 @@ def bc_ue_learn(env_set="Hopper-v2", seed=0, buffer_type="FinalSigma0.5", buffer
 
 	print('buffer setting:', buffer_name + '_' + cut_buffer_size)
 
+	print('clip and selection type:', clip_ue)
+	env_bs_dic = {'Hopper-v2': [4, 4], 'Walker2d-v2': [3, 5], 'HalfCheetah-v2': [1, 1]}
+	if clip_ue is None:
+		best_ue_seed = env_bs_dic[env_set][buffer_seed]
+		C = None
+	elif clip_ue == "s-auto":
+		best_ue_seed = env_bs_dic[env_set][buffer_seed]
+		print('-- Do clipping on the selected envelope --')
+		C, _ = get_ue_clipping_info(best_ue_seed, ue_loss_k, detect_interval, setting_name, state_dim,\
+			buffer_info=buffer_name + '_' + cut_buffer_size, ue_setting='[k=%s_MClen=%s_gamma=%s'%(ue_loss_k, ue_rollout, gamma))
+	elif clip_ue == "f-auto":
+		print('-- Do clipping on each envelope --')
+		ues_info = dict()
+		for ue_seed in ue_seed_list:
+			ues_info[ue_seed] = get_ue_clipping_info(ue_seed, ue_loss_k, detect_interval, setting_name, state_dim,\
+			buffer_info=buffer_name + '_' + cut_buffer_size, ue_setting='[k=%s_MClen=%s_gamma=%s'%(ue_loss_k, ue_rollout, gamma))
+		print('Auto clipping info:', ues_info)
+		clipping_val_list, clipping_loss_list = tuple(map(list, zip(*ues_info.values())))
+		sele_idx = int(np.argmin(np.array(clipping_loss_list)))
+		best_ue_seed = ue_seed_list[sele_idx]
+		C = clipping_val_list[sele_idx]
+
+
+	print("Best UE", best_ue_seed, "Clipping value: ", C)
+
+	print('-- Policy train starts --')
+	gts = np.load('./results/ueMC_%s_Gt.npy' % setting_name, allow_pickle=True)
+	print('Load best envelope from', './results/ueMC_%s_Gt.npy' % setting_name)
 	upper_envelope = Value(state_dim, activation='relu')
-	upper_envelope.load_state_dict(torch.load('%s/%s_UE.pth' % ("./pytorch_models", setting_name+'_s%s_lok%s'%(ue_seed, ue_loss_k))))
-	print('load envelope from', '%s/%s_UE.pth' % ("./pytorch_models", setting_name+'_s%s_lok%s'%(ue_seed, ue_loss_k)))
-	print('testing MClength:', ue_rollout)
-	print('Training loss ratio k:', ue_loss_k)
-	K = ue_loss_k
+	upper_envelope.load_state_dict(torch.load('%s/%s_UE.pth' % ("./pytorch_models", setting_name+'_s%s_lok%s'%(best_ue_seed, ue_loss_k))))
+	print('Load best envelope from', '%s/%s_UE.pth' % ("./pytorch_models", setting_name+'_s%s_lok%s'%(best_ue_seed, ue_loss_k)))
+	print('with testing MClength:', ue_rollout, 'training loss ratio k:', ue_loss_k)
+
 	#plot_envelope(upper_envelope, states, actions, gts, buffer_name, seed)
 
-	print('policy train starts --')
 
-	states = np.load('./results/ueMC_%s_S.npy' % (buffer_name + '_' + cut_buffer_size), allow_pickle=True)
-	gts = np.load('./results/ueMC_%s_Gt.npy' % setting_name, allow_pickle=True)
-
-	if clip is not None:
-		upper_envelope_r = []
-
-		states = torch.from_numpy(np.array(states))
-
-		print(states.shape[0])
-
-		for i in range(states.shape[0]):
-			s = states[i]
-			upper_envelope_r.append(upper_envelope(s.float()).detach())
-
-		upper_envelope_r = torch.stack(upper_envelope_r)
-
-		increasing_ue_returns, increasing_ue_indices = torch.sort(upper_envelope_r.view(1, -1))
-
-		M = int(states.shape[0]*clip) - 1
-		C = increasing_ue_returns[0, M].numpy()
-	else:
-		C = None
-
-	print("The clipping value is: ", C)
 
 
 
@@ -125,6 +128,18 @@ def bc_ue_learn(env_set="Hopper-v2", seed=0, buffer_type="FinalSigma0.5", buffer
 		logger.dump_tabular()
 
 
+def get_ue_clipping_info(ue_seed, ue_loss_k, detect_interval, setting_name, state_dim, buffer_info, ue_setting):
+
+	states = np.load('./results/ueMC_%s_S.npy' % buffer_info, allow_pickle=True)
+	returns = np.load('./results/ueMC_%s_Gt.npy' % setting_name, allow_pickle=True)
+	upper_envelope = Value(state_dim, activation='relu')
+	upper_envelope.load_state_dict(
+		torch.load('%s/%s_UE.pth' % ("./pytorch_models", setting_name + '_s%s_lok%s' % (ue_seed, ue_loss_k))))
+
+	clipping_val, clipping_loss = plot_envelope_with_clipping(upper_envelope, states, returns, buffer_info+ue_setting, ue_seed,
+								  hyper_default=True, k_val=ue_loss_k, S=detect_interval)
+
+	return clipping_val, clipping_loss
 
 # Runs policy for X episodes and returns average reward
 def evaluate_policy(policy, env, eval_episodes=10):
@@ -144,31 +159,14 @@ def evaluate_policy(policy, env, eval_episodes=10):
 	print ("---------------------------------------")
 	return avg_reward
 
-def calculate_mc_ret(replay_buffer, idx, rollout=1000, discount=0.99):
-	r_length = replay_buffer.get_length()
-	state, next_state, a, _, r, d = replay_buffer.index(idx)
-	sampled_policy_est = r
-	for h in range(1, min(rollout, r_length-idx)):
-		if bool(d):  # done=True if d=1
-			break
-		else:
-			state, _, _, _, r, d = replay_buffer.index(idx + h)
-			if (state == next_state).all():
-				sampled_policy_est += discount ** h * r
-				next_state = replay_buffer.index(idx + h)[1]
-			else:
-				break
-
-	return np.asarray(sampled_policy_est)
-
 
 
 if __name__ == "__main__":
 	
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--env_name", default="Hopper-v2")				# OpenAI gym environment name
-	parser.add_argument("--seed", default=2, type=int)					# Sets Gym, PyTorch and Numpy seeds
-	parser.add_argument("--buffer_type", default="MedSACtest1000")				# Prepends name to filename.
+	parser.add_argument("--seed", default=1, type=int)					# Sets Gym, PyTorch and Numpy seeds
+	parser.add_argument("--buffer_type", default="FinalSigma0.5")				# Prepends name to filename.
 	parser.add_argument("--eval_freq", default=1e2, type=float)			# How often (time steps) we evaluate
 	parser.add_argument("--max_timesteps", default=1e6, type=float)		# Max time steps to run environment for
 	parser.add_argument('--exp_name', type=str, default='bc_ue_b')
