@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import argparse
 import os
-print(str(os.getcwd()))
+
 from spinup.utils.logx import EpochLogger
 from spinup.utils.run_utils import setup_logger_kwargs
 from spinup.algos.BCQ import utils, BC_reg
@@ -16,8 +16,8 @@ if os.getcwd().find('lanya') == -1:
 print('data directory', os.getcwd())
 
 def bc_ue_learn(env_set="Hopper-v2", seed=0, buffer_type="FinalSigma0.5", buffer_seed=0, buffer_size='1000K',
-                cut_buffer_size='1000K', ue_seed_list=[1], gamma=0.99, ue_rollout=1000, ue_loss_k=10000,
-				clip_ue=None, detect_interval=10000,
+                cut_buffer_size='1000K', ue_seed_list=[1, 2, 3, 4, 5], gamma=0.99, ue_rollout=1000, ue_loss_k=10000,
+				clip_ue="f-auto", detect_interval=10000,
 			    eval_freq=float(500), max_timesteps=float(1e5), lr=1e-3, wd=0, P=0.25,
 			    logger_kwargs=dict()):
 
