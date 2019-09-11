@@ -405,9 +405,11 @@ def plot_envelope_with_clipping(upper_envelope, states, returns, buffer_setting,
     Adapt_Clip = torch.FloatTensor(Adapt_Clip)
 
     clipped_ue_r = torch.where(increasing_ue_returns > Adapt_Clip, Adapt_Clip, increasing_ue_returns)
-    print(increasing_ue_returns.size(), clipped_ue_r.size())
-    num_above = torch.where(clipped_ue_r > MC_r, torch.FloatTensor([1]), torch.FloatTensor([0])).sum().item()
+    #print(increasing_ue_returns.size(), clipped_ue_r.size())
+    num_above = torch.where(clipped_ue_r < MC_r, torch.FloatTensor([1]), torch.FloatTensor([0])).sum().item()
+    # evaluate UEs by the clipping loss
     Clipping_loss = F.relu(clipped_ue_r-MC_r).sum() + F.relu(MC_r-clipped_ue_r).sum()*k_val
+    #Clipping_loss = F.relu(clipped_ue_r - MC_r).sum() + F.relu(MC_r - clipped_ue_r).sum()
 
     plot_s = list(np.arange(states.shape[0]))
     plt.scatter(plot_s, list(MC_r.view(1, -1).numpy()[0]), s=0.5, color='orange', label='MC_Returns')
