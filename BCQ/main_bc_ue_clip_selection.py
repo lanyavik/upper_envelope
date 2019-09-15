@@ -17,7 +17,7 @@ print('data directory', os.getcwd())
 
 def bc_ue_learn(env_set="Hopper-v2", seed=0, buffer_type="FinalSigma0.5", buffer_seed=0, buffer_size='1000K',
                 cut_buffer_size='1000K', ue_seed_list=[1, 2, 3, 4, 5], gamma=0.99, ue_rollout=1000, ue_loss_k=10000,
-				clip_ue="f-auto", detect_interval=10000,
+				clip_ue="f-auto", detect_interval=10000, k_prime=10000,
 			    eval_freq=float(500), max_timesteps=float(1e5), lr=1e-3, wd=0, P=0.25,
 			    logger_kwargs=dict()):
 
@@ -72,18 +72,18 @@ def bc_ue_learn(env_set="Hopper-v2", seed=0, buffer_type="FinalSigma0.5", buffer
 	print('clip and selection type:', clip_ue)
 	env_bs_dic = {'Hopper-v2': [1, 5], 'Walker2d-v2': [3, 5], 'HalfCheetah-v2': [1, 1]}
 	if clip_ue is None:
-		best_ue_seed = env_bs_dic[env_set][buffer_seed]
+		best_ue_seed = ue_seed_list
 		C = None
 	elif clip_ue == "s-auto":
-		best_ue_seed = env_bs_dic[env_set][buffer_seed]
+		best_ue_seed = ue_seed_list
 		print('-- Do clipping on the selected envelope --')
-		C, _ = get_ue_clipping_info(best_ue_seed, ue_loss_k, detect_interval, setting_name, state_dim,\
+		C, _ = get_ue_clipping_info(best_ue_seed, ue_loss_k, k_prime, detect_interval, setting_name, state_dim,\
 			buffer_info=buffer_name + '_' + cut_buffer_size, ue_setting='[k=%s_MClen=%s_gamma=%s'%(ue_loss_k, ue_rollout, gamma))
 	elif clip_ue == "f-auto":
 		print('-- Do clipping on each envelope --')
 		ues_info = dict()
 		for ue_seed in ue_seed_list:
-			ues_info[ue_seed] = get_ue_clipping_info(ue_seed, ue_loss_k, detect_interval, setting_name, state_dim,\
+			ues_info[ue_seed] = get_ue_clipping_info(ue_seed, ue_loss_k, k_prime, detect_interval, setting_name, state_dim,\
 			buffer_info=buffer_name + '_' + cut_buffer_size, ue_setting='[k=%s_MClen=%s_gamma=%s'%(ue_loss_k, ue_rollout, gamma))
 		print('Auto clipping info:', ues_info)
 		clipping_val_list, clipping_loss_list = tuple(map(list, zip(*ues_info.values())))
@@ -132,7 +132,7 @@ def bc_ue_learn(env_set="Hopper-v2", seed=0, buffer_type="FinalSigma0.5", buffer
 		logger.dump_tabular()
 
 
-def get_ue_clipping_info(ue_seed, ue_loss_k, detect_interval, setting_name, state_dim, buffer_info, ue_setting):
+def get_ue_clipping_info(ue_seed, ue_loss_k, k_prime, detect_interval, setting_name, state_dim, buffer_info, ue_setting):
 
 	states = np.load('./results/ueMC_%s_S.npy' % buffer_info, allow_pickle=True)
 	returns = np.load('./results/ueMC_%s_Gt.npy' % setting_name, allow_pickle=True)
@@ -141,7 +141,7 @@ def get_ue_clipping_info(ue_seed, ue_loss_k, detect_interval, setting_name, stat
 		torch.load('%s/%s_UE.pth' % ("./pytorch_models", setting_name + '_s%s_lok%s' % (ue_seed, ue_loss_k))))
 
 	clipping_val, clipping_loss = plot_envelope_with_clipping(upper_envelope, states, returns, buffer_info+ue_setting, ue_seed,
-								  hyper_default=True, k_val=ue_loss_k, S=detect_interval)
+								  hyper_default=True, k_prime=k_prime, S=detect_interval)
 
 	return clipping_val, clipping_loss
 
@@ -177,7 +177,7 @@ def select_batch_ue(replay_buffer, setting_name, buffer_info, state_dim, best_ue
 	initial_len, selected_len = replay_buffer.get_length(), selected_buffer.get_length()
 	print(selected_len, '/', initial_len, 'selecting ratio:', selected_len/initial_len)
 
-	selection_info = 'ue_C%.2f' % C if C is not None else 'none'
+	selection_info = 'ue_C%.2f' % C if C is not None else 'ue_none'
 	selection_info += '_bor%.2f_len%s' % (border, selected_len)
 	selected_buffer.save(selection_info +'_'+ buffer_info)
 
