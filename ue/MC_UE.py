@@ -363,7 +363,8 @@ def plot_envelope(upper_envelope, states, actions, returns, buffer_setting, seed
     print('Plotting finished')
 
 
-def plot_envelope_with_clipping(upper_envelope, states, returns, buffer_setting, seed, hyper_default=True, k_val=1000, S=10000):
+def plot_envelope_with_clipping(upper_envelope, states, returns, buffer_setting, seed, hyper_default=True,
+                                k_prime=10000, S=10000):
 
     if hyper_default:
         upper_learning_rate, weight_decay, max_step_num ,consecutive_steps = 3e-3, 0.02, int(1e6), 4
@@ -408,7 +409,7 @@ def plot_envelope_with_clipping(upper_envelope, states, returns, buffer_setting,
     #print(increasing_ue_returns.size(), clipped_ue_r.size())
     num_above = torch.where(clipped_ue_r < MC_r, torch.FloatTensor([1]), torch.FloatTensor([0])).sum().item()
     # evaluate UEs by the clipping loss
-    Clipping_loss = F.relu(clipped_ue_r-MC_r).sum() + F.relu(MC_r-clipped_ue_r).sum()*k_val
+    Clipping_loss = F.relu(clipped_ue_r-MC_r).sum() + F.relu(MC_r-clipped_ue_r).sum()*k_prime
     #Clipping_loss = F.relu(clipped_ue_r - MC_r).sum() + F.relu(MC_r - clipped_ue_r).sum()
 
     plot_s = list(np.arange(states.shape[0]))
