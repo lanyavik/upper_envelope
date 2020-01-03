@@ -16,15 +16,15 @@ print('data directory', os.getcwd())
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("running on device:", device)
 
-def bail_learn(env_set="Hopper-v2", seed=0, buffer_type='FinalSigma0.5_env_0_1000K',
-				gamma=0.99, ue_rollout=1000, augment_mc=True,
-				C=None,
-			    eval_freq=5000, max_timesteps=int(1e6), batch_size=1000,
-			    lr=1e-3, wd=0, ue_lr=3e-3, ue_wd=2e-2, ue_loss_k=10000, ue_vali_freq=100,
-				pct_anneal_type='linear', last_pct=0.25,
-			   	pct_info_dic={},
-				select_type='border',
-			    logger_kwargs=dict()):
+def bail_learn(algo = 'bailv3_selebuf',
+			   env_set="Hopper-v2", seed=0, buffer_type='FinalSigma0.5_env_0_1000K',
+			   gamma=0.99, ue_rollout=1000, augment_mc=True, C=None,
+			   eval_freq=5000, max_timesteps=int(1e6), batch_size=1000,
+			   lr=1e-3, wd=0, ue_lr=3e-3, ue_wd=2e-2, ue_loss_k=10000, ue_vali_freq=100,
+			   pct_anneal_type='convex1', last_pct=0.25,
+			   pct_info_dic={'const_timesteps':int(2e2), 'convex1_coef':10},
+			   select_type='border',
+			   logger_kwargs=dict()):
 
 	"""set up logger"""
 	global logger
@@ -37,7 +37,7 @@ def bail_learn(env_set="Hopper-v2", seed=0, buffer_type='FinalSigma0.5_env_0_100
 		os.makedirs("./pytorch_models")
 
 
-	file_name = "BAIL-v3_%s_%s" % (env_set, seed)
+	file_name = "%s_%s_%s" % (algo, env_set, seed)
 	setting_name = "%s_r%s_g%s" % (buffer_type.replace('env', env_set), ue_rollout, gamma)
 	setting_name += '_noaug' if not (augment_mc) else ''
 	setting_name += '_augNew' if augment_mc == 'new' else ''
@@ -84,18 +84,24 @@ def bail_learn(env_set="Hopper-v2", seed=0, buffer_type='FinalSigma0.5_env_0_100
 	# Start training
 	print('-- Policy train starts --')
 	# Initialize policy
-	policy = algo_BAIL.BAIL(state_dim, action_dim, max_action, max_iters=max_timesteps, States=states, MCrets=gts,
-							ue_lr=ue_lr, ue_wd=ue_wd,
-							pct_anneal_type=pct_anneal_type, last_pct=last_pct, pct_info_dic=pct_info_dic,
-							select_type=select_type, C=C)
-
+	if algo == 'bailv3_selebah':
+		policy = algo_BAIL.BAIL(state_dim, action_dim, max_action, max_iters=max_timesteps, States=states, MCrets=gts,
+								ue_lr=ue_lr, ue_wd=ue_wd,
+								pct_anneal_type=pct_anneal_type, last_pct=last_pct, pct_info_dic=pct_info_dic,
+								select_type=select_type, C=C)
+	elif algo == 'bailv3_selebuf':
+		policy = algo_BAIL.BAIL_selebuf(state_dim, action_dim, max_action, max_iters=max_timesteps,
+										States=states, MCrets=gts,
+										ue_lr=ue_lr, ue_wd=ue_wd,
+										pct_anneal_type=pct_anneal_type, last_pct=last_pct, pct_info_dic=pct_info_dic,
+										select_type=select_type, C=C)
 
 	training_iters, epoch = 0, 0
 	
 	while training_iters < max_timesteps:
 		epoch += 1
 		ue = policy.train(replay_buffer, training_iters, iterations=eval_freq, batch_size=batch_size,
-								ue_loss_k=ue_loss_k,  ue_vali_freq= ue_vali_freq,
+								ue_loss_k=ue_loss_k,  ue_vali_freq=ue_vali_freq,
 								logger=logger)
 
 		if training_iters >= max_timesteps - eval_freq:
@@ -254,7 +260,7 @@ if __name__ == "__main__":
 	parser.add_argument("--env_set", default="Hopper-v2")				# OpenAI gym environment name
 	parser.add_argument("--seed", default=1, type=int)					# Sets Gym, PyTorch and Numpy seeds
 	parser.add_argument("--eval_freq", default=int(1e2), type=int)			# How often (time steps) we evaluate
-	parser.add_argument("--max_timesteps", default=int(3e2), type=int)		# Max time steps to run environment for
+	parser.add_argument("--max_timesteps", default=int(4e2), type=int)		# Max time steps to run environment for
 	parser.add_argument('--exp_name', type=str, default='bailv3_local')
 	args = parser.parse_args()
 
