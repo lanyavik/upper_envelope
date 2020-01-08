@@ -17,11 +17,11 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("running on device:", device)
 
 def bail_learn(algo = 'bailv3_selebuf',
-			   env_set="Hopper-v2", seed=0, buffer_type='FinalSigma0.5_env_0_1000K',
+			   env_set="Hopper-v2", seed=0, buffer_type='sacpolicy_env_stopcrt_2_det_bear',
 			   gamma=0.99, ue_rollout=1000, augment_mc=True, C=None,
 			   eval_freq=5000, max_timesteps=int(1e6), batch_size=1000,
 			   lr=1e-3, wd=0, ue_lr=3e-3, ue_wd=2e-2, ue_loss_k=10000, ue_vali_freq=100,
-			   pct_anneal_type='convex1', last_pct=0.25,
+			   pct_anneal_type='constant', last_pct=0.25,
 			   pct_info_dic={'const_timesteps':int(2e2), 'convex1_coef':10},
 			   select_type='border',
 			   logger_kwargs=dict()):
@@ -69,6 +69,8 @@ def bail_learn(algo = 'bailv3_selebuf',
 		desire_stop_dict = {'Hopper-v2': 1000, 'Walker2d-v2': 500, 'HalfCheetah-v2': 4000, 'Ant-v2': 750}
 		buffer_name = buffer_type.replace('env', env_set).replace('crt', str(desire_stop_dict[env_set]))
 		replay_buffer.load(buffer_name)
+		buffer_name += '_1000K'
+		setting_name = setting_name.replace('crt', str(desire_stop_dict[env_set]))
 	elif 'FinalSigma' in buffer_type:
 		replay_buffer = utils.ReplayBuffer()
 		buffer_name = buffer_type.replace('env', env_set)
@@ -77,8 +79,8 @@ def bail_learn(algo = 'bailv3_selebuf',
 		raise FileNotFoundError('! Unknown type of dataset %s'%buffer_type)
 
 	# Load data for training UE
-	states = np.load('./results/ueMC_%s_S.npy' % buffer_name, allow_pickle=True)
-	gts = np.load('./results/ueMC_%s_Gt.npy' % setting_name, allow_pickle=True)
+	states = np.load('./results/ueMC_%s_S.npy' % buffer_name, allow_pickle=True).squeeze()
+	gts = np.load('./results/ueMC_%s_Gt.npy' % setting_name, allow_pickle=True).squeeze()
 	print('Load gts with gamma:', gamma, 'rollout length:', ue_rollout)
 
 	# Start training

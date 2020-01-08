@@ -83,8 +83,6 @@ class BEAR_ReplayBuffer(object):
 
 	def sample(self, batch_size, with_data_policy=False, require_idxs=False):
 		ind = np.random.randint(0, self.storage['observations'].shape[0], size=batch_size)
-		state, next_state, action, reward, done = [], [], [], [], []
-		# import ipdb; ipdb.set_trace()
 
 		s = self.storage['observations'][ind]
 		a = self.storage['actions'][ind]
@@ -107,15 +105,15 @@ class BEAR_ReplayBuffer(object):
 		#				np.array(data_cov))
 		if require_idxs:
 			return (np.array(s),
+					np.array(s2),
 					np.array(a),
 					np.array(r).reshape(-1, 1),
-					np.array(s2),
 					np.array(d).reshape(-1, 1), ind)
 		else:
 			return (np.array(s),
+					np.array(s2),
 					np.array(a),
 					np.array(r).reshape(-1, 1),
-					np.array(s2),
 					np.array(d).reshape(-1, 1))
 
 	def save(self, filename):
