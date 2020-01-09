@@ -1,0 +1,31 @@
+{
+    "C":	null,
+    "algo":	"bailv3_selebuf",
+    "augment_mc":	true,
+    "batch_size":	1000,
+    "buffer_type":	"FinalSigma0.5_env_0_1000K",
+    "env_set":	"Hopper-v2",
+    "eval_freq":	5000,
+    "exp_name":	"bailv3_selebuf_lastp0-25_anl-constant_uelr0-003_finalsigma0-5_env_0_1000k_hopper-v2",
+    "gamma":	0.99,
+    "last_pct":	0.25,
+    "logger_kwargs":	{
+        "exp_name":	"bailv3_selebuf_lastp0-25_anl-constant_uelr0-003_finalsigma0-5_env_0_1000k_hopper-v2",
+        "output_dir":	"/gpfsnyu/home/xc1305/pythonlib/spinningup-drl-prototyping/data/bailv3_selebuf_lastp0-25_anl-constant_uelr0-003_finalsigma0-5_env_0_1000k_hopper-v2/bailv3_selebuf_lastp0-25_anl-constant_uelr0-003_finalsigma0-5_env_0_1000k_hopper-v2_s1"
+    },
+    "lr":	0.001,
+    "max_timesteps":	1000000,
+    "pct_anneal_type":	"constant",
+    "pct_info_dic":	{
+        "const_timesteps":	500000,
+        "convex1_coef":	10
+    },
+    "seed":	1,
+    "select_type":	"border",
+    "ue_loss_k":	10000,
+    "ue_lr":	0.003,
+    "ue_rollout":	1000,
+    "ue_vali_freq":	1000,
+    "ue_wd":	0.02,
+    "wd":	0
+}
