@@ -188,7 +188,7 @@ class BAIL(object): # selection in mini-batch
 			elif self.select_type == 'margin':
 				diffs = mc_ret - state_value
 				increasing_diffs, increasing_diff_indices = torch.sort(diffs.view(-1))
-				mrg_ind = increasing_ratio_indices[-int(cur_pct * batch_size)]
+				mrg_ind = increasing_diff_indices[-int(cur_pct * batch_size)]
 				margin = diffs[mrg_ind]
 
 				weights = torch.where(mc_ret >= margin + state_value, \
@@ -413,3 +413,111 @@ def calc_ue_valiloss(upper_envelope, test_states, test_returns, ue_bsize, ue_los
 
 	return validation_loss
 
+
+class BAIL_weight(object): # weighting by ratio in mini-batch
+	def __init__(self, state_dim, action_dim, max_action, max_iters, States, MCrets,
+				 ue_lr=3e-3, ue_wd=2e-2, lr=1e-3, wd=0,
+				 C=None):
+
+		self.actor = Actor(state_dim, action_dim, max_action).to(device)
+		self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=lr, weight_decay=wd)
+
+		self.v_ue = Value(state_dim, activation='relu').to(device)
+		self.v_ue_optimizer = torch.optim.Adam(self.v_ue.parameters(), lr=ue_lr, weight_decay=ue_wd)
+		self.best_v_ue = Value(state_dim, activation='relu').to(device)
+		self.ue_best_parameters = self.v_ue.state_dict()
+
+		self.MCrets = MCrets
+		test_size = int(MCrets.shape[0] * 0.2)
+		self.MC_valiset_indices = np.random.randint(0, MCrets.shape[0], size=test_size)
+
+		self.test_states = torch.from_numpy(States[self.MC_valiset_indices])
+		self.test_mcrets = torch.from_numpy(self.MCrets[self.MC_valiset_indices])
+		print('ue test set size:', self.test_states.size(), self.test_mcrets.size())
+
+		self.state_dim = state_dim
+		self.action_dim = action_dim
+		self.ue_valiloss_min = torch.Tensor([float('inf')]).to(device)
+		self.num_increase = 0
+		self.max_iters = max_iters
+		self.C = C
+
+
+	def select_action(self, state):
+		state = torch.FloatTensor(state.reshape(1, -1)).to(device)
+		return self.actor(state).cpu().data.numpy().flatten()
+
+	def train(self, replay_buffer, done_training_iters, iterations=5000, batch_size=1000,
+			  ue_loss_k=10000, ue_vali_freq=10,
+			  logger=dict()):
+
+		for it in range(done_training_iters, done_training_iters + iterations):
+
+			# get batch data
+			state, next_state, action, reward, done, idxs = replay_buffer.sample(batch_size, require_idxs=True)
+
+			state = torch.FloatTensor(state).to(device)
+			action = torch.FloatTensor(action).to(device)
+			# next_state = torch.FloatTensor(next_state).to(device)
+			# reward = torch.FloatTensor(reward).to(device)
+			# done = torch.FloatTensor(1 - done).to(device)
+			mc_ret = torch.FloatTensor(self.MCrets[idxs]).to(device)
+
+			uetrain_batch_pos = [p for p, i in enumerate(idxs) if i not in self.MC_valiset_indices]
+			uetrain_s = state[uetrain_batch_pos]
+			uetrain_mc = mc_ret[uetrain_batch_pos]
+
+			# train upper envelope by the k-penalty loss
+			Vsi = self.v_ue(uetrain_s)
+			ue_loss = L2PenaltyLoss(Vsi, uetrain_mc, k_val=ue_loss_k)
+
+			self.v_ue_optimizer.zero_grad()
+			ue_loss.backward()
+			self.v_ue_optimizer.step()
+
+			""" if it is time to recalculate border/margin """
+			""" do validation for the UE network, update the best ue """
+			if it % ue_vali_freq == 0:
+				validation_loss = calc_ue_valiloss(self.v_ue, self.test_states, self.test_mcrets,
+												   ue_bsize=int(batch_size * 0.8), ue_loss_k=ue_loss_k)
+
+				# choose best parameters with least validation loss for the eval ue
+				self.ue_valiloss_min = torch.min(self.ue_valiloss_min, validation_loss)
+				logger.store(UEValiLossMin=self.ue_valiloss_min)
+				if validation_loss > self.ue_valiloss_min:
+					self.best_v_ue.load_state_dict(self.ue_best_parameters)
+					self.num_increase += 1
+				else:
+					self.ue_best_parameters = self.v_ue.state_dict()
+					self.num_increase = 0
+				# if validation loss of ue is increasing for some consecutive steps, also return the training ue to least
+				# validation loss parameters
+				if self.num_increase == 4:
+					self.v_ue.load_state_dict(self.ue_best_parameters)
+
+			# estimate state values by the upper envelope
+			state_value = self.best_v_ue(state).squeeze().detach()
+			# project negative or small positive state values to (0, 1)
+			state_value = torch.where(state_value < 1, (state_value - 1).exp(), state_value)
+			if self.C is not None:
+				C = self.C.to(device)
+				state_value = torch.where(state_value > C, C, state_value)
+			# print(type(state_value))
+
+			# Compute MSE loss for actor
+			weights = mc_ret / state_value
+			update_size = weights.sum().cpu().item()
+			weights = torch.stack([weights, ] * self.action_dim, dim=1)
+			# print(weights.size(), action.size())
+			actor_loss = torch.mul(weights, self.actor(state) - action).pow(2).mean()
+
+			# Optimize the actor
+			self.actor_optimizer.zero_grad()
+			actor_loss.backward()
+			self.actor_optimizer.step()
+
+			logger.store(CloneLoss=actor_loss.detach().cpu().item(), UELoss=ue_loss.detach().cpu().item(),
+						 BatchUEtrnSize=len(uetrain_batch_pos), BatchUpSize=update_size,
+						 SVal=state_value.detach().mean())
+
+		return self.best_v_ue
