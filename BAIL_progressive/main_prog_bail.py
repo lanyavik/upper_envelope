@@ -18,11 +18,11 @@ print("running on device:", device)
 
 def bail_learn(algo = 'bail_2_bah',
 			   env_set="Hopper-v2", seed=0, buffer_type='sacpolicy_env_stopcrt_2_det_bear',
-			   gamma=0.99, ue_rollout=1000, augment_mc=True, C=None,
-			   eval_freq=5000, max_timesteps=int(1e6), batch_size=1000,
-			   lr=1e-3, wd=0, ue_lr=3e-3, ue_wd=2e-2, ue_loss_k=10000, ue_vali_freq=100,
+			   gamma=0.99, ue_rollout=1000, augment_mc='gain', C=None,
+			   eval_freq=1000, max_timesteps=int(1e6), batch_size=1000,
+			   lr=1e-3, wd=0, ue_lr=3e-3, ue_wd=2e-2, ue_loss_k=10000, ue_vali_freq=1000,
 			   pct_anneal_type='constant', last_pct=0.25,
-			   pct_info_dic={'const_timesteps':int(5e3), 'convex1_coef':10},
+			   pct_info_dic={},
 			   select_type='border',
 			   logger_kwargs=dict()):
 
@@ -80,8 +80,11 @@ def bail_learn(algo = 'bail_2_bah',
 
 	# Load data for training UE
 	states = np.load('./results/ueMC_%s_S.npy' % buffer_name, allow_pickle=True).squeeze()
-	gts = np.load('./results/ueMC_%s_Gt.npy' % setting_name, allow_pickle=True).squeeze()
-	print('Load gts with gamma:', gamma, 'rollout length:', ue_rollout)
+	if augment_mc == 'gain':
+		gts = np.load('./results/ueMC_%s_Gain.npy' % setting_name, allow_pickle=True).squeeze()
+	else:
+		gts = np.load('./results/ueMC_%s_Gt.npy' % setting_name, allow_pickle=True).squeeze()
+	print('Load mc returns type', augment_mc, 'with gamma:', gamma, 'rollout length:', ue_rollout)
 
 	# Start training
 	print('-- Policy train starts --')
@@ -97,6 +100,8 @@ def bail_learn(algo = 'bail_2_bah',
 										ue_lr=ue_lr, ue_wd=ue_wd,
 										pct_anneal_type=pct_anneal_type, last_pct=last_pct, pct_info_dic=pct_info_dic,
 										select_type=select_type, C=C)
+	else:
+		raise Exception("! undefined BAIL implementation '%s'" % algo)
 
 	training_iters, epoch = 0, 0
 	
@@ -201,74 +206,20 @@ def evaluate_policy(policy, env, eval_episodes=10):
 	print ("---------------------------------------")
 	return avg_reward
 
-"""
-def get_ue_clipping_info(ue_seed, ue_loss_k, detect_interval, setting_name, state_dim, buffer_info, ue_setting):
-
-	states = np.load('./results/ueMC_%s_S.npy' % buffer_info, allow_pickle=True)
-	returns = np.load('./results/ueMC_%s_Gt.npy' % setting_name, allow_pickle=True)
-	upper_envelope = Value(state_dim, activation='relu')
-	upper_envelope.load_state_dict(
-		torch.load('%s/%s_UE.pth' % ("./pytorch_models", setting_name + '_s%s_lok%s' % (ue_seed, ue_loss_k))))
-
-	clipping_val, clipping_loss = plot_envelope_with_clipping(upper_envelope, states, returns, buffer_info+ue_setting, ue_seed,
-								  hyper_default=True, S=detect_interval)
-
-	return clipping_val, clipping_loss
-
-
-def select_batch_ue(replay_buffer, setting_name, buffer_info, state_dim, best_ue_seed, ue_loss_k, C, select_percentage):
-
-	states = np.load('./results/ueMC_%s_S.npy' % buffer_info, allow_pickle=True)
-	returns = np.load('./results/ueMC_%s_Gt.npy' % setting_name, allow_pickle=True)
-	upper_envelope = Value(state_dim, activation='relu')
-	upper_envelope.load_state_dict(
-		torch.load('%s/%s_UE.pth' % ("./pytorch_models", setting_name + '_s%s_lok%s' % (best_ue_seed, ue_loss_k))))
-
-
-	ratios = []
-	for i in range(states.shape[0]):
-		s, gt = torch.FloatTensor([states[i]]), torch.FloatTensor([returns[i]])
-		s_val = upper_envelope(s.unsqueeze(dim=0).float()).detach().squeeze()
-		ratios.append(gt / torch.min(s_val, C) if C is not None else gt / s_val)
-	ratios = torch.stack(ratios).view(-1)
-	increasing_ratios, increasing_ratio_indices = torch.sort(ratios)
-	bor_ind = increasing_ratio_indices[-int(select_percentage*states.shape[0])]
-	border = ratios[bor_ind]
-
-	'''begin selection'''
-	selected_buffer = utils.ReplayBuffer()
-	print('Selecting with ue border', border.item())
-	for i in range(states.shape[0]):
-		rat = ratios[i]
-		if rat >= border:
-			data = replay_buffer.index(i)
-			selected_buffer.add(data)
-
-	initial_len, selected_len = replay_buffer.get_length(), selected_buffer.get_length()
-	print(selected_len, '/', initial_len, 'selecting ratio:', selected_len/initial_len)
-
-	selection_info = 'ue_C%.2f' % C if C is not None else 'ue_none'
-	selection_info += '_bor%.2f_len%s' % (border, selected_len)
-	selected_buffer.save(selection_info +'_'+ buffer_info)
-
-	return (selected_buffer, selected_len, border)
-	"""
-
-
 
 if __name__ == "__main__":
-	
 	parser = argparse.ArgumentParser()
-	parser.add_argument("--env_set", default="Hopper-v2")				# OpenAI gym environment name
-	parser.add_argument("--seed", default=1, type=int)					# Sets Gym, PyTorch and Numpy seeds
-	parser.add_argument("--eval_freq", default=int(1e2), type=int)			# How often (time steps) we evaluate
-	parser.add_argument("--max_timesteps", default=int(4e2), type=int)		# Max time steps to run environment for
+	parser.add_argument("--env_set", default="Hopper-v2")  # OpenAI gym environment name
+	parser.add_argument("--seed", default=1, type=int)  # Sets Gym, PyTorch and Numpy seeds
+	parser.add_argument("--eval_freq", default=int(1e2), type=int)  # How often (time steps) we evaluate
+	parser.add_argument("--ue_vali_freq", default=int(1e2), type=int)
+	parser.add_argument("--max_timesteps", default=int(4e2), type=int)  # Max time steps to run environment for
 	parser.add_argument('--exp_name', type=str, default='bailv3_local')
 	args = parser.parse_args()
 
 	logger_kwargs = setup_logger_kwargs(args.exp_name, args.seed)
 
 	bail_learn(env_set=args.env_set, seed=args.seed,
-                eval_freq=args.eval_freq,
-                max_timesteps=args.max_timesteps,
-                logger_kwargs=logger_kwargs)
+			   eval_freq=args.eval_freq, ue_vali_freq=args.ue_vali_freq,
+			   max_timesteps=args.max_timesteps,
+			   logger_kwargs=logger_kwargs)
