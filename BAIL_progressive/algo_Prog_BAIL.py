@@ -188,7 +188,7 @@ class BAIL_selebah(object): # selection in mini-batch
 			elif self.select_type == 'margin':
 				diffs = mc_ret - state_value
 				increasing_diffs, increasing_diff_indices = torch.sort(diffs.view(-1))
-				mrg_ind = increasing_ratio_indices[-int(cur_pct * batch_size)]
+				mrg_ind = increasing_diff_indices[-int(cur_pct * batch_size)]
 				margin = diffs[mrg_ind]
 
 				weights = torch.where(mc_ret >= margin + state_value, \
