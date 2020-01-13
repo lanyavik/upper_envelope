@@ -136,8 +136,7 @@ class BEAR_ReplayBuffer(object):
 		if num_traj == 0:
 				num_traj = 1000
 		average_per_traj_return = sum_returns/num_traj
-		print ("Average Return: ", average_per_traj_return)
-		# import ipdb; ipdb.set_trace()
+		#print ("Average Return: ", average_per_traj_return)
 
 		num_samples = self.storage['observations'].shape[0]
 		if bootstrap_dim is not None:
@@ -150,4 +149,5 @@ class BEAR_ReplayBuffer(object):
 		return self.storage['observations'].shape[0]
 
 	def index(self, i):
-		return (replay_buffer.storage['observations'][ind], replay_buffer.storage['actions'][ind])
+		return (self.storage['observations'][i], self.storage['next_observations'][i], self.storage['actions'][i],
+				self.storage['rewards'][i], self.storage['terminals'][i])

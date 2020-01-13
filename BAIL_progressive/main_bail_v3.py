@@ -16,11 +16,11 @@ print('data directory', os.getcwd())
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("running on device:", device)
 
-def bail_learn(algo = 'bailv3_selebuf',
+def bail_learn(algo = 'bailv3_selebah',
 			   env_set="Hopper-v2", seed=0, buffer_type='sacpolicy_env_stopcrt_2_det_bear',
-			   gamma=0.99, ue_rollout=1000, augment_mc=True, C=None,
-			   eval_freq=5000, max_timesteps=int(1e6), batch_size=1000,
-			   lr=1e-3, wd=0, ue_lr=3e-3, ue_wd=2e-2, ue_loss_k=10000, ue_vali_freq=100,
+			   gamma=0.99, ue_rollout=1000, augment_mc='gain', C=None,
+			   eval_freq=1000, max_timesteps=int(1e6), batch_size=1000,
+			   lr=1e-3, wd=0, ue_lr=3e-3, ue_wd=2e-2, ue_loss_k=10000, ue_vali_freq=1000,
 			   pct_anneal_type='constant', last_pct=0.25,
 			   pct_info_dic={'const_timesteps':int(2e2), 'convex1_coef':10},
 			   select_type='border',
@@ -80,8 +80,11 @@ def bail_learn(algo = 'bailv3_selebuf',
 
 	# Load data for training UE
 	states = np.load('./results/ueMC_%s_S.npy' % buffer_name, allow_pickle=True).squeeze()
-	gts = np.load('./results/ueMC_%s_Gt.npy' % setting_name, allow_pickle=True).squeeze()
-	print('Load gts with gamma:', gamma, 'rollout length:', ue_rollout)
+	if augment_mc == 'gain':
+		gts = np.load('./results/ueMC_%s_Gain.npy' % setting_name, allow_pickle=True).squeeze()
+	else:
+		gts = np.load('./results/ueMC_%s_Gt.npy' % setting_name, allow_pickle=True).squeeze()
+	print('Load mc returns type', augment_mc, 'with gamma:', gamma, 'rollout length:', ue_rollout)
 
 	# Start training
 	print('-- Policy train starts --')
@@ -97,6 +100,12 @@ def bail_learn(algo = 'bailv3_selebuf',
 										ue_lr=ue_lr, ue_wd=ue_wd,
 										pct_anneal_type=pct_anneal_type, last_pct=last_pct, pct_info_dic=pct_info_dic,
 										select_type=select_type, C=C)
+	elif algo == 'bail_3_weight':
+		policy = algo_BAIL.BAIL_weight(state_dim, action_dim, max_action, max_iters=max_timesteps,
+										States=states, MCrets=gts,
+										ue_lr=ue_lr, ue_wd=ue_wd, C=C)
+	else:
+		raise Exception("! undefined BAIL implementation '%s'" % algo)
 
 	training_iters, epoch = 0, 0
 	
@@ -123,14 +132,15 @@ def bail_learn(algo = 'bailv3_selebuf',
 		logger.log_tabular('UEValiLossMin', average_only=True)
 		logger.log_tabular('BatchUEtrnSize', average_only=True)
 		logger.log_tabular('SVal', with_min_and_max=True)
-		logger.log_tabular('SelePct', average_only=True)
 		logger.log_tabular('BatchUpSize', with_min_and_max=True)
-		if select_type == 'border':
-			logger.log_tabular('Border', with_min_and_max=True)
-		elif select_type == 'margin':
-			logger.log_tabular('Margin', with_min_and_max=True)
-		else:
-			raise Exception('! undefined selection type')
+		if algo != 'bail_3_weight':
+			logger.log_tabular('SelePct', average_only=True)
+			if select_type == 'border':
+				logger.log_tabular('Border', with_min_and_max=True)
+			elif select_type == 'margin':
+				logger.log_tabular('Margin', with_min_and_max=True)
+			else:
+				raise Exception('! undefined selection type')
 
 		logger.dump_tabular()
 
@@ -262,6 +272,7 @@ if __name__ == "__main__":
 	parser.add_argument("--env_set", default="Hopper-v2")				# OpenAI gym environment name
 	parser.add_argument("--seed", default=1, type=int)					# Sets Gym, PyTorch and Numpy seeds
 	parser.add_argument("--eval_freq", default=int(1e2), type=int)			# How often (time steps) we evaluate
+	parser.add_argument("--ue_vali_freq", default=int(1e2), type=int)
 	parser.add_argument("--max_timesteps", default=int(4e2), type=int)		# Max time steps to run environment for
 	parser.add_argument('--exp_name', type=str, default='bailv3_local')
 	args = parser.parse_args()
@@ -269,6 +280,6 @@ if __name__ == "__main__":
 	logger_kwargs = setup_logger_kwargs(args.exp_name, args.seed)
 
 	bail_learn(env_set=args.env_set, seed=args.seed,
-                eval_freq=args.eval_freq,
+                eval_freq=args.eval_freq, ue_vali_freq=args.ue_vali_freq,
                 max_timesteps=args.max_timesteps,
                 logger_kwargs=logger_kwargs)
