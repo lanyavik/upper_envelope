@@ -601,7 +601,7 @@ def plot_envelope(upper_envelope, states, returns, setting, seed, hyper_lst, mak
 	return
 
 
-def plot_envelope_with_clipping(upper_envelope, states, returns, setting, seed, hyper_lst, make_title=True, S=10000):
+def plot_envelope_with_clipping(upper_envelope, states, returns, setting, seed, hyper_lst, make_title=False, S=10000):
 
 	upper_learning_rate, weight_decay, k_val, num_epoches, consecutive_steps = hyper_lst
 
@@ -616,14 +616,13 @@ def plot_envelope_with_clipping(upper_envelope, states, returns, setting, seed, 
 	plt.rc('legend', fontsize=14)  # legend fontsize
 
 	upper_envelope_r = []
-	MC_r = []
 	for i in range(states.shape[0]):
 		s = states[i]
 		upper_envelope_r.append(upper_envelope(s.float()).detach())
-		MC_r.append(returns[i])
+
+	MC_r = torch.from_numpy(returns).float().to(device)
 
 	upper_envelope_r = torch.stack(upper_envelope_r)
-	MC_r = torch.stack(MC_r).float()
 	increasing_ue_returns, increasing_ue_indices = torch.sort(upper_envelope_r.view(1, -1))
 	MC_r = MC_r[increasing_ue_indices[0]]
 
@@ -631,7 +630,7 @@ def plot_envelope_with_clipping(upper_envelope, states, returns, setting, seed, 
 	perm = np.arange(states.shape[0])
 	Diff = []
 	for idx in perm:
-		Diff.append(increasing_ue_returns[0, idx] - MC_r.view(1, -1).numpy()[0, idx])
+		Diff.append(increasing_ue_returns[0, idx] - MC_r.view(1, -1).cpu().numpy()[0, idx])
 
 	eval_point = states.shape[0] - 1
 	Clipping_value = increasing_ue_returns[0, eval_point]
@@ -645,21 +644,21 @@ def plot_envelope_with_clipping(upper_envelope, states, returns, setting, seed, 
 	Adapt_Clip = []
 	for i in range(states.shape[0]):
 		Adapt_Clip.append(Clipping_value)
-	Adapt_Clip = torch.FloatTensor(Adapt_Clip)
+	Adapt_Clip = torch.FloatTensor(Adapt_Clip).to(device)
 
 	clipped_ue_r = torch.where(increasing_ue_returns > Adapt_Clip, Adapt_Clip, increasing_ue_returns)
 	#num_above = torch.where(clipped_ue_r > MC_r, torch.FloatTensor([1]), torch.FloatTensor([0])).sum().item()
 	Clipping_loss = F.relu(clipped_ue_r-MC_r).sum() + F.relu(MC_r-clipped_ue_r).sum()*k_val
 
 	plot_s = list(np.arange(states.shape[0]))
-	plt.scatter(plot_s, list(MC_r.view(1, -1).numpy()[0]), s=0.5, color='orange', label='MC_Returns')
-	plt.plot(plot_s, list(increasing_ue_returns.view(1, -1).numpy()[0]), color='blue', label="UpperEnvelope")
-	plt.plot(plot_s, Adapt_Clip.numpy(), color='black', label="Adaptive_Clipping_%s" % eval_point)
+	plt.scatter(plot_s, list(MC_r.view(1, -1).cpu().numpy()[0]), s=0.5, color='orange', label='MC_Returns')
+	plt.plot(plot_s, list(increasing_ue_returns.view(1, -1).cpu().numpy()[0]), color='blue', label="UpperEnvelope")
+	plt.plot(plot_s, Adapt_Clip.cpu().numpy(), color='black', label="Adaptive_Clipping_%s" % eval_point)
 	clip_info = '_clip_%.2f_loss_%.2fe6_ues_%s' % (Clipping_value.item(), Clipping_loss.item()/1e6, seed)
 	plt.xlabel('state')
 	plt.ylabel('V(s) comparison')
 	if make_title:
-		plt.title(setting.replace('[', '\n'))
+		plt.title(setting.replace('K', 'K\n'))
 	plt.legend()
 	plt.tight_layout()
 	plt.savefig('./plots/' + "ue_visual_%s_Clipped.png" % (setting + clip_info))
