@@ -16,7 +16,7 @@ print('data directory', os.getcwd())
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("running on device:", device)
 
-def bail_learn(algo = 'bail_1_buf',
+def bail_learn(algo = 'bail_2_bah',
 			   env_set="Hopper-v2", seed=0, buffer_type='FinalSigma0.5_env_0_1000K',
 			   gamma=0.99, ue_rollout=1000, augment_mc='gain', C=None,
 			   eval_freq=1250, max_timesteps=int(1e6), batch_size=1000,
