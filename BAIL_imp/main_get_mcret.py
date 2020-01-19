@@ -65,58 +65,7 @@ def get_mc(env_set="Hopper-v2", seed=1, buffer_type="sac_buffer_hopper_300",
 
 
 def calculate_mc_gain(replay_buffer, rollout=1000, gamma=0.99):
-
-    gts = []
-    states = []
-    actions = []
-
-    g = 0
-    prev_s = 0
-    termination_point = 0
-
-    endpoint = []
-    dist = []  #L2 distance between the current state and the termination point
-
-    length = replay_buffer.get_length()
-    ep_len = 0
-
-    #Find gains without augmentation term
-    for ind in range(length-1, -1, -1):
-        state, o2, action, r, done = replay_buffer.index(ind)
-
-        states.append(state)
-        actions.append(action)
-
-        if done:
-            g = r
-            gts.append(g)
-            endpoint.append(ind)
-            termination_point = state
-            prev_s = state
-            dist.append(0)
-            ep_len = 1
-            continue
-
-        if np.array_equal(prev_s, o2):
-            g = gamma*g + r
-            prev_s = state
-            dist.append(np.linalg.norm(state - termination_point))
-            ep_len += 1
-        else:
-            g = r
-            endpoint.append(ind)
-            termination_point = state
-            prev_s = state
-            dist.append(0)
-            ep_len = 1
-
-        gts.append(g)
-
-    states = states[::-1]
-    actions = actions[::-1]
-    gts = gts[::-1]
-    endpoint = endpoint[::-1]
-    dist = dist[::-1]
+    states, actions, gts, endpoint, dist = calculate_mc_return_no_aug(replay_buffer, gamma)
 
     aug_gts = gts[:]
 
@@ -130,51 +79,72 @@ def calculate_mc_gain(replay_buffer, rollout=1000, gamma=0.99):
             continue
 
         #episodes not early terminated
-        for j in range(end, start-1, -1):
-            interval = dist[start: start + end-j+1]
+        for j in range(end, start, -1):
+            interval = dist[start: start + end-j+2]
             index = interval.index(min(interval))
+            # term = end - j + 1
+            # term += rollout - index
             aug_gts[j] += gamma**(end-j+1) * gts[start+index]
-            # print("Before aug: ", gts[j])
-            # print("Discount: ", gamma**(rollout - (end-j+1)))
-            # print("After aug: ", aug_gts[j])
+            if index != end-j+1:
+                aug_gts[j] -= gamma**(1000) * gts[index + j]
+                # term -= end - index - j + 1
 
+            # print("number of terms used to calculate mc ret: ", term)
         start = end+1
 
     return states, aug_gts
 
+def calculate_mc_return_no_aug(replaybuffer, gamma=0.99):
+    """
+    Calculate the MC return without augmentation
+    Input: replaybuffer: BCQ replay buffer
+    Output: states, actions, returns (no aug)
+    """
 
-'''
-def calculate_mc_ret(replay_buffer, idx, rollout=1000, discount=0.99):
-	r_length = len(replay_buffer.storage['terminals'])
-	r, d = replay_buffer.storage['rewards'][idx], replay_buffer.storage['terminals'][idx]
-	mc_ret_est = r
-	for h in range(1, min(rollout, r_length-idx)):
-		if bool(d):  # done=True if d=1
-			pass
-		else:
-			r, d = replay_buffer.storage['rewards'][idx + h], replay_buffer.storage['terminals'][idx + h]
-			mc_ret_est += discount ** h * r
+    gts = []
+    states = []
+    actions = []
 
-	return np.asarray(mc_ret_est)
+    g = 0
 
+    g = 0
+    prev_s = 0
+    termination_point = 0
 
-def calculate_mc_ret_truncate(replay_buffer, idx, rollout=1000, discount=0.99):
-	r_length = replay_buffer.get_length()
-	state, next_state, _, r, d = replay_buffer.index(idx)
-	sampled_policy_est = r
-	for h in range(1, min(rollout, r_length-idx)):
-		if bool(d):  # done=True if d=1
-			break
-		else:
-			state, _, _, r, d = replay_buffer.index(idx + h)
-			if (state == next_state).all():
-				sampled_policy_est += discount ** h * r
-				next_state = replay_buffer.index(idx + h)[1]
-			else:
-				break
+    endpoint = []
+    dist = []  # L2 distance between the current state and the termination point
 
-	return np.asarray(sampled_policy_est)
-'''
+    length = replaybuffer.get_length()
+
+    for ind in range(length-1, -1, -1):
+        state, o2, action, r, done = replaybuffer.index(ind)
+
+        states.append(state)
+        actions.append(action)
+
+        if done:
+            g = r
+            gts.append(g)
+            endpoint.append(ind)
+            termination_point = state
+            prev_s = state
+            dist.append(0)
+            continue
+
+        if np.array_equal(prev_s, o2):
+            g = gamma*g + r
+            prev_s = state
+            dist.append(np.linalg.norm(state - termination_point))
+        else:
+            g = r
+            endpoint.append(ind)
+            termination_point = state
+            prev_s = state
+            dist.append(0)
+
+        gts.append(g)
+
+    return states[::-1], actions[::-1], gts[::-1], endpoint[::-1], dist[::-1]
 
 
 if __name__ == "__main__":
