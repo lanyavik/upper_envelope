@@ -493,7 +493,7 @@ def train_upper_envelope(states, returns, state_dim, seed,
 	# upper_envelope = Value(state_dim)
 	# optimizer = torch.optim.Adam(upper_envelope.parameters(), lr=0.003, weight_decay=20)
 
-	batch_size = 64
+	batch_size = 800
 	optim_iter_num = int(np.ceil(train_states.shape[0] / batch_size))
 
 	num_increase = 0
