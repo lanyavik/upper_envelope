@@ -8,9 +8,9 @@
 
        which trains an upper envelope, plot the envelope, selects a "best state-action" dataset and do behaviral cloning
 
-3.(b)  run main_prog_bail.py (choose either "bail_1_buf" or "bail_2_bah" of the progressive bail implementation)
+3.(b)  run main_prog_bail.py (choose "bail_2_bah" of the progressive bail implementation)
 
-       which iteratively do one gradient update on upper envelope, select state-action in the dataset/mini-batch via upper envelope, 
+       which iteratively do one gradient update on upper envelope, select state-action in the mini-batch via upper envelope, 
        do one gradient update on the actor network using behavioral cloning.
        Also plot the final upper envelope at the end of training
 
