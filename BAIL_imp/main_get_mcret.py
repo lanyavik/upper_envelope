@@ -11,8 +11,8 @@ if os.getcwd().find('lanya') == -1:
 	os.chdir("/gpfsnyu/scratch/xc1305")
 print('data directory', os.getcwd())
 
-def get_mc(env_set="Hopper-v2", seed=1, buffer_type="sacpolicy_env_stopcrt_2_det_bear", buffer_size='1000K',
-           gamma=0.99, rollout=1000, augment_mc=True,
+def get_mc(env_set="Hopper-v2", seed=1, buffer_type="sac_buffer_hopper_300",
+           gamma=0.99, rollout=1000, augment_mc='gain',
 		   logger_kwargs=dict()):
 
 	print('MClength:', rollout)
@@ -56,7 +56,7 @@ def get_mc(env_set="Hopper-v2", seed=1, buffer_type="sacpolicy_env_stopcrt_2_det
 
 		states, gains = calculate_mc_gain(replay_buffer, rollout=rollout, gamma=gamma)
 		if not os.path.exists('./results/ueMC_%s_S.npy' % buffer_name):
-			np.save('./results/ueMC_%s_S' % (buffer_name + '_' + buffer_size), states)
+			np.save('./results/ueMC_%s_S' % buffer_name, states)
 		np.save('./results/ueMC_%s_Gain' % setting_name, gains)
 	else:
             raise Exception('! undefined mc calculation type')
