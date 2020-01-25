@@ -19,8 +19,8 @@ print("running on device:", device)
 def bail_learn(algo = 'bail_2_bah',
 			   env_set="Hopper-v2", seed=0, buffer_type='FinalSigma0.5_env_0_1000K',
 			   gamma=0.99, ue_rollout=1000, augment_mc='gain', C=None,
-			   eval_freq=1250, max_timesteps=int(1e6), batch_size=1000,
-			   lr=1e-3, wd=0, ue_lr=3e-3, ue_wd=2e-2, ue_loss_k=10000, ue_vali_freq=1000,
+			   eval_freq=625, max_timesteps=int(25e4), batch_size=1000,
+			   lr=1e-3, wd=0, ue_lr=3e-3, ue_wd=2e-2, ue_loss_k=1000, ue_vali_freq=1000,
 			   pct_anneal_type='constant', last_pct=0.25,
 			   pct_info_dic={},
 			   select_type='border',
@@ -74,6 +74,12 @@ def bail_learn(algo = 'bail_2_bah',
 	elif 'FinalSigma' in buffer_type:
 		replay_buffer = utils.ReplayBuffer()
 		buffer_name = buffer_type.replace('env', env_set)
+		replay_buffer.load(buffer_name)
+	elif 'optimal' in buffer_type:
+		buffer_name = buffer_type.replace('env', env_set)
+		setting_name = buffer_name
+		setting_name += 'noaug' if not (augment_mc) else ''
+		replay_buffer = utils.ReplayBuffer()
 		replay_buffer.load(buffer_name)
 	else:
 		raise FileNotFoundError('! Unknown type of dataset %s' % buffer_type)

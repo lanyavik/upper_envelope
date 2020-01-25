@@ -552,7 +552,7 @@ def train_upper_envelope(states, returns, state_dim, seed,
 
 '''Plotting code for UE is here'''
 
-def plot_envelope(upper_envelope, states, returns, setting, seed, hyper_lst, make_title=True):
+def plot_envelope(upper_envelope, states, returns, setting, seed, hyper_lst, make_title=False):
 
 	upper_learning_rate, weight_decay, k_val, num_epoches, consecutive_steps = hyper_lst
 
