@@ -574,24 +574,23 @@ def plot_envelope(upper_envelope, states, returns, setting, seed, hyper_lst, mak
 	all_ue_loss = torch.nn.functional.relu(increasing_ue_vals-MC_r).sum() + \
 				  torch.nn.functional.relu(MC_r-increasing_ue_vals).sum()*k_val
 
-	plt.rc('font', size=18)  # controls default text sizes
-	plt.rc('axes', titlesize=10)  # fontsize of the axes title
-	plt.rc('axes', labelsize=18)  # fontsize of the x and y labels
-	plt.rc('xtick', labelsize=18)  # fontsize of the tick labels
-	plt.rc('ytick', labelsize=18)  # fontsize of the tick labels
 	plt.rc('legend', fontsize=14)  # legend fontsize
+	fig, axs = plt.subplots()
+
+	axs.set_xlabel('state', fontsize=28)
+	axs.set_ylabel('Returns and \n Upper Envelope', fontsize=28, multialignment="center")
 
 	plot_s = list(np.arange(states.shape[0]))
-	plt.scatter(plot_s, list(MC_r.view(1, -1).cpu().numpy()[0]), s=0.5, color='orange', label='MC_Returns')
-	plt.plot(plot_s, list(increasing_ue_vals.view(1, -1).cpu().numpy()[0]), color='blue', label="UpperEnvelope")
+	plt.scatter(plot_s, list(MC_r.view(1, -1).cpu().numpy()[0]), s=0.5, color='orange', label='MC Returns')
+	plt.plot(plot_s, list(increasing_ue_vals.view(1, -1).cpu().numpy()[0]), color='blue', label="Upper Envelope")
 
 	ue_info = '_loss_%.2fe6' % (all_ue_loss.item()/1e6)
 	if make_title:
 		title = setting.replace('_r', '\nr') + ue_info
 		plt.title(title)
-	plt.xlabel('state')
-	plt.ylabel('V(s) comparison')
 	plt.legend()
+	plt.xticks(fontsize=18, rotation=15)
+	plt.yticks(fontsize=18)
 	plt.tight_layout()
 	plt.savefig('./plots/' + "ue_visual_%s.png" % setting)
 	plt.close('all')
@@ -608,12 +607,11 @@ def plot_envelope_with_clipping(upper_envelope, states, returns, setting, seed, 
 	states = torch.from_numpy(states).to(device)
 	upper_envelope = upper_envelope.to(device)
 
-	plt.rc('font', size=18)  # controls default text sizes
-	plt.rc('axes', titlesize=18)  # fontsize of the axes title
-	plt.rc('axes', labelsize=18)  # fontsize of the x and y labels
-	plt.rc('xtick', labelsize=18)  # fontsize of the tick labels
-	plt.rc('ytick', labelsize=18)  # fontsize of the tick labels
 	plt.rc('legend', fontsize=14)  # legend fontsize
+	fig, axs = plt.subplots()
+
+	axs.set_xlabel('state', fontsize=28)
+	axs.set_ylabel('Returns and \n Upper Envelope', fontsize=28, multialignment="center")
 
 	upper_envelope_r = []
 	for i in range(states.shape[0]):
@@ -651,12 +649,10 @@ def plot_envelope_with_clipping(upper_envelope, states, returns, setting, seed, 
 	Clipping_loss = F.relu(clipped_ue_r-MC_r).sum() + F.relu(MC_r-clipped_ue_r).sum()*k_val
 
 	plot_s = list(np.arange(states.shape[0]))
-	plt.scatter(plot_s, list(MC_r.view(1, -1).cpu().numpy()[0]), s=0.5, color='orange', label='MC_Returns')
-	plt.plot(plot_s, list(increasing_ue_returns.view(1, -1).cpu().numpy()[0]), color='blue', label="UpperEnvelope")
+	plt.scatter(plot_s, list(MC_r.view(1, -1).cpu().numpy()[0]), s=0.5, color='orange', label='MC Returns')
+	plt.plot(plot_s, list(increasing_ue_returns.view(1, -1).cpu().numpy()[0]), color='blue', label="Upper Envelope")
 	plt.plot(plot_s, Adapt_Clip.cpu().numpy(), color='black', label="Adaptive_Clipping_%s" % eval_point)
 	clip_info = '_clip_%.2f_loss_%.2fe6_ues_%s' % (Clipping_value.item(), Clipping_loss.item()/1e6, seed)
-	plt.xlabel('state')
-	plt.ylabel('V(s) comparison')
 	if make_title:
 		plt.title(setting.replace('K', 'K\n'))
 	plt.legend()
