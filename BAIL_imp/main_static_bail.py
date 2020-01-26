@@ -94,7 +94,7 @@ def bail_learn(env_set="Hopper-v2", seed=0, buffer_type="sac_buffer_hopper_300",
 		torch.save(upper_envelope.state_dict(), '%s/Stat_UE_%s.pth' % ("./pytorch_models", setting_name + \
 																  '_s%s_lok%s' % (seed, ue_loss_k)))
 		print('plotting ue --')
-		plot_envelope(upper_envelope, states, returns, cur_ue_setting, seed, [ue_lr, ue_wd, ue_loss_k, max_timesteps, 4])
+		plot_envelope(upper_envelope, states, returns, cur_ue_setting, seed, [ue_lr, ue_wd, ue_loss_k, ue_train_epoch, 4])
 
 	else:
 		upper_envelope = Value(state_dim, activation='relu')

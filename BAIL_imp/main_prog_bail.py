@@ -118,7 +118,7 @@ def bail_learn(algo = 'bail_2_bah',
 
 		if training_iters >= max_timesteps - eval_freq:
 			cur_ue_setting = 'Prog_' + setting_name + '_lossk%s_s%s' % (ue_loss_k, seed)
-			plot_envelope(ue, states, gts, cur_ue_setting, seed, [ue_lr, ue_wd, ue_loss_k, max_timesteps, 4])
+			plot_envelope(ue, states, gts, cur_ue_setting, seed, [ue_lr, ue_wd, ue_loss_k, max_timesteps/batch_size, 4])
 			torch.save(ue.state_dict(), '%s/Prog_UE_%s.pth' % ("./pytorch_models", setting_name + \
 																  '_s%s_lok%s' % (seed, ue_loss_k)))
 
