@@ -20,7 +20,7 @@ def bail_learn(algo = 'bail_2_bah',
 			   env_set="Hopper-v2", seed=0, buffer_type='FinalSigma0.5_env_0_1000K',
 			   gamma=0.99, ue_rollout=1000, augment_mc='gain', C=None,
 			   eval_freq=625, max_timesteps=int(25e4), batch_size=1000,
-			   lr=1e-3, wd=0, ue_lr=3e-3, ue_wd=2e-2, ue_loss_k=1000, ue_vali_freq=1000,
+			   lr=1e-3, wd=0, ue_lr=3e-3, ue_wd=2e-2, ue_loss_k=1000, ue_vali_freq=1250,
 			   pct_anneal_type='constant', last_pct=0.25,
 			   pct_info_dic={},
 			   select_type='border',
@@ -131,11 +131,11 @@ def bail_learn(algo = 'bail_2_bah',
 		logger.log_tabular('TotalSteps', training_iters)
 		logger.log_tabular('CloneLoss', average_only=True)
 		logger.log_tabular('UELoss', average_only=True)
-		logger.log_tabular('UEValiLossMin', average_only=True)
 		logger.log_tabular('BatchUEtrnSize', average_only=True)
 		logger.log_tabular('SVal', with_min_and_max=True)
 		logger.log_tabular('SelePct', average_only=True)
 		logger.log_tabular('BatchUpSize', with_min_and_max=True)
+		logger.log_tabular('UEValiLossMin', average_only=True)
 		if select_type == 'border':
 			logger.log_tabular('Border', with_min_and_max=True)
 		elif select_type == 'margin':

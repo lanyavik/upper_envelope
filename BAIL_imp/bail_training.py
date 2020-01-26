@@ -100,7 +100,7 @@ class BAIL_selebah(object): # selection in mini-batch
 		return self.actor(state).cpu().data.numpy().flatten()
 
 	def train(self, replay_buffer, done_training_iters, iterations=5000, batch_size=1000,
-			  ue_loss_k=10000, ue_vali_freq=10,
+			  ue_loss_k=10000, ue_vali_freq=1250,
 			  logger=dict()):
 
 		for it in range(done_training_iters, done_training_iters + iterations):
@@ -135,7 +135,7 @@ class BAIL_selebah(object): # selection in mini-batch
 
 				# choose best parameters with least validation loss for the eval ue
 				self.ue_valiloss_min = torch.min(self.ue_valiloss_min, validation_loss)
-				logger.store(UEValiLossMin=self.ue_valiloss_min)
+
 				if validation_loss > self.ue_valiloss_min:
 					self.best_v_ue.load_state_dict(self.ue_best_parameters)
 					self.num_increase += 1
@@ -210,6 +210,8 @@ class BAIL_selebah(object): # selection in mini-batch
 			logger.store(CloneLoss=actor_loss.detach().cpu().item(), UELoss=ue_loss.detach().cpu().item(),
 						 BatchUEtrnSize=len(uetrain_batch_pos), BatchUpSize=update_size,
 						 SVal=state_value.detach().mean())
+
+		logger.store(UEValiLossMin=self.ue_valiloss_min)
 
 		return self.best_v_ue
 
