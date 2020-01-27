@@ -65,10 +65,8 @@ def bcq_learn(env_set="Hopper-v2", seed=0, buffer_type="sacpolicy_env_stopcrt_2_
         replay_buffer = utils.ReplayBuffer()
         buffer_name = buffer_type.replace('env', env_set)
         replay_buffer.load(buffer_name)
-    elif 'optimal' in buffer_type:
+    elif 'optimal' in buffer_type or 'sigma'in buffer_type:
         buffer_name = buffer_type.replace('env', env_set)
-        setting_name = buffer_name
-        setting_name += 'noaug' if not (augment_mc) else ''
         replay_buffer = utils.ReplayBuffer()
         replay_buffer.load(buffer_name)
     else:
