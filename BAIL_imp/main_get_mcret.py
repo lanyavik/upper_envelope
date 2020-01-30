@@ -11,7 +11,7 @@ if os.getcwd().find('lanya') == -1:
 	os.chdir("/gpfsnyu/scratch/xc1305")
 print('data directory', os.getcwd())
 
-def get_mc(env_set="Hopper-v2", seed=1, buffer_type="sac_buffer_hopper_300",
+def get_mc(env_set="Hopper-v2", seed=1, buffer_type='FinalSigma0.1_env_0_1000K',
            gamma=0.99, rollout=1000, augment_mc='gain',
 		   logger_kwargs=dict()):
 
@@ -42,7 +42,7 @@ def get_mc(env_set="Hopper-v2", seed=1, buffer_type="sac_buffer_hopper_300",
 		replay_buffer.load(buffer_name)
 		buffer_name += '_1000K'
 		setting_name = setting_name.replace('crt', str(desire_stop_dict[env_set]))
-	elif 'FinalSigma' in buffer_type:
+	elif 'FinalSigma' in buffer_type or 'sigma' in buffer_type:
 		replay_buffer = utils.ReplayBuffer()
 		buffer_name = buffer_type.replace('env', env_set)
 		replay_buffer.load(buffer_name)

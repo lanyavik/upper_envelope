@@ -16,7 +16,7 @@ print('data directory', os.getcwd())
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("running on device:", device)
 
-def bail_learn(env_set="Hopper-v2", seed=0, buffer_type="sac_buffer_hopper_300",
+def bail_learn(env_set="Hopper-v2", seed=0, buffer_type="FinalSigma0.5_env_0_1000K",
 					gamma=0.99, ue_rollout=1000, augment_mc='gain',
 					ue_lr=3e-3, ue_wd=2e-2, ue_loss_k=1000, ue_train_epoch=50,
 					clip_ue=False, detect_interval=10000,
@@ -65,7 +65,7 @@ def bail_learn(env_set="Hopper-v2", seed=0, buffer_type="sac_buffer_hopper_300",
 		replay_buffer.load(buffer_name)
 		buffer_name += '_1000K'
 		setting_name = setting_name.replace('crt', str(desire_stop_dict[env_set]))
-	elif 'FinalSigma' in buffer_type:
+	elif 'FinalSigma' in buffer_type or 'sigma' in buffer_type:
 		replay_buffer = utils.ReplayBuffer()
 		buffer_name = buffer_type.replace('env', env_set)
 		replay_buffer.load(buffer_name)
