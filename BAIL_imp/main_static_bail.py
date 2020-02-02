@@ -19,7 +19,7 @@ print("running on device:", device)
 def bail_learn(env_set="Hopper-v2", seed=0, buffer_type="FinalSigma0.5_env_0_1000K",
 					gamma=0.99, ue_rollout=1000, augment_mc='gain',
 					ue_lr=3e-3, ue_wd=2e-2, ue_loss_k=1000, ue_train_epoch=50,
-					clip_ue=False, detect_interval=10000,
+					clip_ue=False, C=None, detect_interval=10000,
 			    	eval_freq=500, max_timesteps=int(2e5), batch_size=int(1e3), lr=1e-3, wd=0, pct=0.3,
 			    	logger_kwargs=dict()):
 
@@ -34,6 +34,9 @@ def bail_learn(env_set="Hopper-v2", seed=0, buffer_type="FinalSigma0.5_env_0_100
 	setting_name = "%s_r%s_g%s" % (buffer_type.replace('env', env_set), ue_rollout, gamma)
 	setting_name += '_noaug' if not (augment_mc) else ''
 	setting_name += '_augNew' if augment_mc == 'new' else ''
+	#in oracle study, use gain calculated via Oracle data, but use NonOracle data to train UE and policy
+	if 'Oracle' == buffer_type[:6]:
+		buffer_type = 'Non' + buffer_type
 
 	print("---------------------------------------")
 	print("Algo: " + file_name + "\tData: " + buffer_type)
@@ -65,7 +68,7 @@ def bail_learn(env_set="Hopper-v2", seed=0, buffer_type="FinalSigma0.5_env_0_100
 		replay_buffer.load(buffer_name)
 		buffer_name += '_1000K'
 		setting_name = setting_name.replace('crt', str(desire_stop_dict[env_set]))
-	elif 'FinalSigma' in buffer_type or 'sigma' in buffer_type:
+	elif 'Final' in buffer_type or 'sigma' in buffer_type:
 		replay_buffer = utils.ReplayBuffer()
 		buffer_name = buffer_type.replace('env', env_set)
 		replay_buffer.load(buffer_name)
