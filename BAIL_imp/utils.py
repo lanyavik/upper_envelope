@@ -154,8 +154,8 @@ class BEAR_ReplayBuffer(object):
 				num_traj = 1000
 		average_per_traj_return = sum_returns/num_traj
 		#print ("Average Return: ", average_per_traj_return)
-
 		num_samples = self.storage['observations'].shape[0]
+		print('Load buffer size:', num_samples)
 		if bootstrap_dim is not None:
 				self.with_mask =True
 				print('Bootstrap with dim', bootstrap_dim)

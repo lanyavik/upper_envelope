@@ -5,63 +5,67 @@ import argparse
 import os
 from spinup.utils.logx import EpochLogger
 from spinup.utils.run_utils import setup_logger_kwargs
-from spinup.algos.BAIL_progressive import utils
+from spinup.algos.BAIL_imp import utils
 
 if os.getcwd().find('lanya') == -1:
 	os.chdir("/gpfsnyu/scratch/xc1305")
 print('data directory', os.getcwd())
 
-def get_mc(env_set="Hopper-v2", seed=1, buffer_type='FinalSigma0.1_env_0_1000K',
+def get_mc(env_set="Hopper-v2", seed=1, buffer_type='NonOracle_FinalSigma0.5_env_0_1000K',
            gamma=0.99, rollout=1000, augment_mc='gain',
 		   logger_kwargs=dict()):
 
-	print('MClength:', rollout)
-	print('Discount value', gamma)
+    print('MClength:', rollout)
+    print('Discount value', gamma)
 
-	device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-	print("running on device:", device)
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    print("running on device:", device)
 
-	global logger
-	logger = EpochLogger(**logger_kwargs)
-	logger.save_config(locals())
+    global logger
+    logger = EpochLogger(**logger_kwargs)
+    logger.save_config(locals())
 
-	if not os.path.exists("./results"):
-		os.makedirs("./results")
+    if not os.path.exists("./results"):
+        os.makedirs("./results")
 
-	setting_name = "%s_r%s_g%s" % (buffer_type.replace('env', env_set), rollout, gamma)
-	setting_name += 'noaug' if not (augment_mc) else ''
-	print("---------------------------------------")
-	print("Settings: " + setting_name)
-	print("---------------------------------------")
+    setting_name = "%s_r%s_g%s" % (buffer_type.replace('env', env_set), rollout, gamma)
+    setting_name += 'noaug' if not (augment_mc) else ''
+    print("---------------------------------------")
+    print("Settings: " + setting_name)
+    print("---------------------------------------")
 
-	# Load buffer
-	if 'sac' in buffer_type:
-		replay_buffer = utils.BEAR_ReplayBuffer()
-		desire_stop_dict = {'Hopper-v2': 1000, 'Walker2d-v2': 500, 'HalfCheetah-v2': 4000, 'Ant-v2': 750}
-		buffer_name = buffer_type.replace('env', env_set).replace('crt', str(desire_stop_dict[env_set]))
-		replay_buffer.load(buffer_name)
-		buffer_name += '_1000K'
-		setting_name = setting_name.replace('crt', str(desire_stop_dict[env_set]))
-	elif 'FinalSigma' in buffer_type or 'sigma' in buffer_type:
-		replay_buffer = utils.ReplayBuffer()
-		buffer_name = buffer_type.replace('env', env_set)
-		replay_buffer.load(buffer_name)
-	else:
-		raise FileNotFoundError('! Unknown type of dataset %s' % buffer_type)
+    # Load buffer
+    if 'sac' in buffer_type:
+        replay_buffer = utils.BEAR_ReplayBuffer()
+        desire_stop_dict = {'Hopper-v2': 1000, 'Walker2d-v2': 500, 'HalfCheetah-v2': 4000, 'Ant-v2': 750}
+        buffer_name = buffer_type.replace('env', env_set).replace('crt', str(desire_stop_dict[env_set]))
+        replay_buffer.load(buffer_name)
+        buffer_name += '_1000K'
+        setting_name = setting_name.replace('crt', str(desire_stop_dict[env_set]))
+    elif 'Final' in buffer_type or 'sigma' in buffer_type:
+        replay_buffer = utils.ReplayBuffer()
+        buffer_name = buffer_type.replace('env', env_set)
+        replay_buffer.load(buffer_name)
+    else:
+        raise FileNotFoundError('! Unknown type of dataset %s' % buffer_type)
 
 
-	print('Starting MC calculation, type:', augment_mc)
+    print('Starting MC calculation, type:', augment_mc)
 
-	if augment_mc == 'gain':
+    if augment_mc == 'gain':
+        if 'Oracle' == buffer_type[:6]:
+            states, gains = calculate_mc_return_no_aug_oracle(replay_buffer, rollout=rollout, gamma=gamma)
+        else:
+            states, gains = calculate_mc_gain(replay_buffer, rollout=rollout, gamma=gamma)
 
-		states, gains = calculate_mc_gain(replay_buffer, rollout=rollout, gamma=gamma)
-		if not os.path.exists('./results/ueMC_%s_S.npy' % buffer_name):
-			np.save('./results/ueMC_%s_S' % buffer_name, states)
-		np.save('./results/ueMC_%s_Gain' % setting_name, gains)
-	else:
+            if not os.path.exists('./results/ueMC_%s_S.npy' % buffer_name):
+                np.save('./results/ueMC_%s_S' % buffer_name, states)
+        print(len(gains))
+        np.save('./results/ueMC_%s_Gain' % setting_name, gains)
+    else:
             raise Exception('! undefined mc calculation type')
 
-	print('Calculation finished ==')
+    print('Calculation finished ==')
 
 
 def calculate_mc_gain(replay_buffer, rollout=1000, gamma=0.99):
@@ -146,6 +150,56 @@ def calculate_mc_return_no_aug(replaybuffer, gamma=0.99):
 
     return states[::-1], actions[::-1], gts[::-1], endpoint[::-1], dist[::-1]
 
+def calculate_mc_return_no_aug_oracle(replaybuffer, gamma=0.99, rollout=1000):
+    """
+    Calculate the MC return without augmentation
+    Input: replaybuffer: BAIL replay buffer
+    Output: states, actions, returns (no aug)
+    """
+    gts = []
+    temp_gts = []
+    states = []
+    actions = []
+
+    g = 0
+    prev_s = 0
+
+    length = replaybuffer.get_length()
+
+    for ind in range(length-1, -1, -1):
+        state, o2, action, r, done = replaybuffer.index(ind)
+
+        states.append(state)
+        actions.append(action)
+
+        if done:
+            if len(temp_gts) <= 1000:
+                gts.extend(temp_gts)
+            else:
+                gts.extend(temp_gts[-1000:])
+
+            g = r
+            temp_gts = [g]
+            prev_s = state
+            continue
+
+        if np.array_equal(prev_s, o2):
+            g = gamma*g + r
+            prev_s = state
+            temp_gts.append(g)
+        else:
+            if len(temp_gts) <= 1000:
+                gts.extend(temp_gts)
+            else:
+                gts.extend(temp_gts[-1000:])
+
+            g = r
+            temp_gts = [g]
+            prev_s = state
+
+    gts.extend(temp_gts)
+
+    return states[::-1], gts[::-1]
 
 if __name__ == "__main__":
 	
