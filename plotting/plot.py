@@ -7,12 +7,16 @@ import os.path as osp
 import numpy as np
 
 DIV_LINE_WIDTH = 50
-FONT =16
+
 # Global vars for tracking and labeling data at load time.
 exp_idx = 0
 units = dict()
 
-def plot_data(data, xaxis='Epoch', value="AverageEpRet", condition="Condition1", smooth=1, no_legend=False, legend_loc='best', color=None, font_scale=1.5, font_size=FONT, **kwargs):
+
+def plot_data(data, xaxis='Epoch', value="AverageEpRet", condition="Condition1", smooth=1, no_legend=False,
+              legend_loc='best', color=None, linestyle=None, font_scale=1.5,
+              label_font_size=24, xlabel=None, ylabel=None,
+              **kwargs):
     if smooth > 1:
         """
         smooth data with moving window average.
@@ -24,7 +28,7 @@ def plot_data(data, xaxis='Epoch', value="AverageEpRet", condition="Condition1",
         for datum in data:
             x = np.asarray(datum[value])
             z = np.ones(len(x))
-            smoothed_x = np.convolve(x,y,'same') / np.convolve(z,y,'same')
+            smoothed_x = np.convolve(x, y, 'same') / np.convolve(z, y, 'same')
             datum[value] = smoothed_x
 
     if isinstance(data, list):
@@ -35,9 +39,19 @@ def plot_data(data, xaxis='Epoch', value="AverageEpRet", condition="Condition1",
     print("##############")
 
     ## TODO CHANGE BACK
-    sns.tsplot(data=data, time=xaxis, value=value, unit="Unit", condition=condition, legend=(not no_legend), ci='sd', n_boot=0, color=color, **kwargs)
-    plt.xlabel('epochs', fontsize=font_size)
-    plt.ylabel('average test return', fontsize=font_size)
+    ax = sns.tsplot(data=data, time=xaxis, value=value, unit="Unit", condition=condition, legend=(not no_legend), ci='sd',
+               n_boot=0, color=color)
+    if linestyle is not None:
+        for i in range(len(linestyle)):
+            ax.lines[i].set_linestyle(linestyle[i])
+
+    print("yoooooooooo", len(ax.lines))
+
+    print("COLOR",color)
+    xlabel = 'environment interactions' if xlabel is None else xlabel
+    ylabel = 'average test return' if ylabel is None else ylabel
+    plt.xlabel(xlabel, fontsize=label_font_size)
+    plt.ylabel(ylabel, fontsize=label_font_size)
 
     """
     If you upgrade to any version of Seaborn greater than 0.8.1, switch from 
@@ -48,12 +62,7 @@ def plot_data(data, xaxis='Epoch', value="AverageEpRet", condition="Condition1",
     Changes the colorscheme and the default legend style, though.
     """
     if not no_legend:
-        plt.legend(loc=legend_loc, fontsize=font_size).set_draggable(True)
-        #plt.legend(fontsize=font_size, loc='upper left').set_draggable(True)
-        # handles, labels = plt.gca().get_legend_handles_labels()
-        # plt.legend(handles=handles[1:], labels=labels[1:], loc=legend_loc).set_draggable(True)
-        # 'upper left', 'upper right', 'lower left', 'lower right',
-        # 'upper center', 'lower center', 'center left', 'center right', 'center'
+        plt.legend(loc=legend_loc, fontsize=label_font_size)
 
     """
     For the version of the legend used in the Spinning Up benchmarking page, 
@@ -66,16 +75,17 @@ def plot_data(data, xaxis='Epoch', value="AverageEpRet", condition="Condition1",
     xscale = np.max(np.asarray(data[xaxis])) > 5e3
     if xscale:
         # Just some formatting niceness: x-axis scale in scientific notation if max x is large
-        plt.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
+        plt.ticklabel_format(style='sci', axis='x', scilimits=(0, 0))
 
     plt.tight_layout(pad=0.5)
+
 
 def get_datasets(logdir, condition=None):
     """
     Recursively look through logdir for output files produced by
-    spinup.logx.Logger. 
+    spinup.logx.Logger.
 
-    Assumes that any file "progress.txt" is a valid hit. 
+    Assumes that any file "progress.txt" is a valid hit.
     """
     global exp_idx
     global units
@@ -84,7 +94,7 @@ def get_datasets(logdir, condition=None):
         if 'progress.txt' in files:
             exp_name = None
             try:
-                config_path = open(os.path.join(root,'config.json'))
+                config_path = open(os.path.join(root, 'config.json'))
                 config = json.load(config_path)
                 if 'exp_name' in config:
                     exp_name = config['exp_name']
@@ -98,12 +108,12 @@ def get_datasets(logdir, condition=None):
             unit = units[condition1]
             units[condition1] += 1
 
-            exp_data = pd.read_table(os.path.join(root,'progress.txt'))
-            performance = 'AverageTestEpRet' if 'AverageTestEpRet' in exp_data else 'AverageReturn'
-            exp_data.insert(len(exp_data.columns),'Unit',unit)
-            exp_data.insert(len(exp_data.columns),'Condition1',condition1)
-            exp_data.insert(len(exp_data.columns),'Condition2',condition2)
-            exp_data.insert(len(exp_data.columns),'Performance',exp_data[performance])
+            exp_data = pd.read_table(os.path.join(root, 'progress.txt'))
+            performance = 'AverageTestEpRet' if 'AverageTestEpRet' in exp_data else 'AverageEpRet'
+            exp_data.insert(len(exp_data.columns), 'Unit', unit)
+            exp_data.insert(len(exp_data.columns), 'Condition1', condition1)
+            exp_data.insert(len(exp_data.columns), 'Condition2', condition2)
+            exp_data.insert(len(exp_data.columns), 'Performance', exp_data[performance])
             datasets.append(exp_data)
     return datasets
 
@@ -111,21 +121,21 @@ def get_datasets(logdir, condition=None):
 def get_all_datasets(all_logdirs, legend=None, select=None, exclude=None):
     """
     For every entry in all_logdirs,
-        1) check if the entry is a real directory and if it is, 
-           pull data from it; 
+        1) check if the entry is a real directory and if it is,
+           pull data from it;
 
-        2) if not, check to see if the entry is a prefix for a 
+        2) if not, check to see if the entry is a prefix for a
            real directory, and pull data from that.
     """
     logdirs = []
     for logdir in all_logdirs:
-        if osp.isdir(logdir) and logdir[-1]=='/':
+        if osp.isdir(logdir) and logdir[-1] == '/':
             logdirs += [logdir]
         else:
             basedir = osp.dirname(logdir)
-            fulldir = lambda x : osp.join(basedir, x)
+            fulldir = lambda x: osp.join(basedir, x)
             prefix = logdir.split('/')[-1]
-            listdir= os.listdir(basedir)
+            listdir = os.listdir(basedir)
             logdirs += sorted([fulldir(x) for x in listdir if prefix in x])
 
     """
@@ -136,16 +146,16 @@ def get_all_datasets(all_logdirs, legend=None, select=None, exclude=None):
     if select is not None:
         logdirs = [log for log in logdirs if all(x in log for x in select)]
     if exclude is not None:
-        logdirs = [log for log in logdirs if all(not(x in log) for x in exclude)]
+        logdirs = [log for log in logdirs if all(not (x in log) for x in exclude)]
 
     # Verify logdirs
-    print('Plotting from...\n' + '='*DIV_LINE_WIDTH + '\n')
+    print('Plotting from...\n' + '=' * DIV_LINE_WIDTH + '\n')
     for logdir in logdirs:
         print(logdir)
-    print('\n' + '='*DIV_LINE_WIDTH)
+    print('\n' + '=' * DIV_LINE_WIDTH)
 
     # Make sure the legend is compatible with the logdirs
-    assert not(legend) or (len(legend) == len(logdirs)), \
+    assert not (legend) or (len(legend) == len(logdirs)), \
         "Must give a legend title for each set of experiments."
 
     # Load data from logdirs
@@ -159,32 +169,30 @@ def get_all_datasets(all_logdirs, legend=None, select=None, exclude=None):
     return data
 
 
-def make_plots(all_logdirs, legend=None, xaxis=None, values=None, count=False,  
-               font_scale=1.5, smooth=1, select=None, exclude=None, estimator='mean', no_legend=False, legend_loc='best',
-               save_name=None, xlimit=-1, color=None):
+def make_plots(all_logdirs, legend=None, xaxis=None, values=None, count=False,
+               font_scale=1.5, smooth=1, select=None, exclude=None, estimator='mean', no_legend=False,
+               legend_loc='best',
+               save_name=None, xlimit=-1, color=None, linestyle=None, label_font_size=24, xlabel=None, ylabel=None):
     data = get_all_datasets(all_logdirs, legend, select, exclude)
     values = values if isinstance(values, list) else [values]
     condition = 'Condition2' if count else 'Condition1'
-    estimator = getattr(np, estimator)      # choose what to show on main curve: mean? max? min?
+    estimator = getattr(np, estimator)  # choose what to show on main curve: mean? max? min?
     for value in values:
         plt.figure()
-        #plt.figure(figsize=(15, 10))
-        plot_data(data, xaxis=xaxis, value=value, condition=condition, smooth=smooth, no_legend=no_legend, legend_loc=legend_loc,
-                  estimator=estimator, color=color, font_scale=font_scale)
+        # plt.figure(figsize=(10, 7))
+        plot_data(data, xaxis=xaxis, value=value, condition=condition, smooth=smooth, no_legend=no_legend,
+                  legend_loc=legend_loc,
+                  estimator=estimator, color=color, linestyle=linestyle, font_scale=font_scale, label_font_size=label_font_size,
+                  xlabel=xlabel, ylabel=ylabel)
         if xlimit > 0:
             plt.xlim(0, xlimit)
 
-        _, _, y_min, y_max = plt.axis()
-        if y_min > 0:
-            plt.ylim(0, y_max+y_min)
-
-    #plt.title('Hopper-v2 mediocre')
     if save_name is not None:
-        plt.tight_layout(pad=1)
         fig = plt.gcf()
-        fig.savefig(save_name, dpi=100)
+        fig.savefig(save_name)
     else:
         plt.show()
+
 
 def main():
     import argparse
@@ -203,6 +211,10 @@ def main():
     parser.add_argument('--save-name', type=str, default=None)
     parser.add_argument('--xlimit', type=int, default=-1)
     parser.add_argument('--color', '-color', nargs='*')
+    parser.add_argument('--linestyle', '-linestyle', nargs='*')
+    parser.add_argument('--xlabel', type=str, default=None)
+    parser.add_argument('--ylabel', type=str, default=None)
+    parser.add_argument('--label-font-size', type=float, default=16)
 
     args = parser.parse_args()
     """
@@ -251,9 +263,9 @@ def main():
 
         exclude (strings): Optional exclusion rule: plotter will only show 
             curves from logdirs that do not contain these substrings.
-            
+
         no-legend: if specified then no legend will be shown
-        
+
         color: specify colors of your figures, for example add: --color b g
         will make the first curve blue, second curve green
         check matplotlib color for more options:
@@ -262,12 +274,21 @@ def main():
         'tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:cyan'
         for example: --color tab:orange tab:blue
         will make first curve orange, second blue
+        
+        linestyle: specify linestyle, for example: --linestyle solid dashed
+        this is similar to color. Make sure the order is correct. 
+
+        xlabel: what string to use for x axis label
+        ylabel: what string to use for x axis label
+        label-font-size: will affect x, y label and legend font size
     """
 
-    make_plots(args.logdir, args.legend, args.xaxis, args.value, args.count, 
+    make_plots(args.logdir, args.legend, args.xaxis, args.value, args.count,
                smooth=args.smooth, select=args.select, exclude=args.exclude,
                estimator=args.est, no_legend=args.no_legend, legend_loc=args.legend_loc, save_name=args.save_name,
-               xlimit=args.xlimit, color=args.color)
+               xlimit=args.xlimit, color=args.color, linestyle=args.linestyle, label_font_size=args.label_font_size, xlabel=args.xlabel,
+               ylabel=args.ylabel)
+
 
 if __name__ == "__main__":
     main()
